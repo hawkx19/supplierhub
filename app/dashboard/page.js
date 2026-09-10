@@ -1,33 +1,99 @@
 'use client';
 
-import { useState } from 'react';
-
-const initial = [
-  ['12W LED Bulb', 'Electrical', '₹120', '84'],
-  ['6A Modular Switch', 'Electrical', '₹45', '120'],
-  ['Copper Wire 1.5mm', 'Wires', '₹82/m', '18'],
-  ['Ceiling Fan 1200mm', 'Fans', '₹2,499', '0'],
-  ['PVC Insulation Tape', 'Accessories', '₹35', '46']
-];
+import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 export default function Dashboard() {
-  const [products, setProducts] = useState(initial);
+  const [products, setProducts] = useState([]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [stock, setStock] = useState('1');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const add = () => {
-    if (!name) return;
+  const loadProducts = async () => {
+    setLoading(true);
+    setError('');
 
-    setProducts((p) => [
-      [name, 'New', '₹' + (price || '0'), '1'],
-      ...p
-    ]);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError('Please login again.');
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setProducts(data || []);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const add = async () => {
+    if (!name.trim()) return;
+
+    setSaving(true);
+    setError('');
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError('Please login again.');
+      setSaving(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .insert({
+        user_id: user.id,
+        name: name.trim(),
+        category: 'New',
+        price: Number(price) || 0,
+        stock: Number(stock) || 0,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      setError(error.message);
+      setSaving(false);
+      return;
+    }
+
+    setProducts((p) => [data, ...p]);
 
     setName('');
     setPrice('');
+    setStock('1');
     setOpen(false);
+    setSaving(false);
   };
+
+  const inStock = products.filter((p) => Number(p.stock) > 0).length;
+
+  const lowStock = products.filter(
+    (p) => Number(p.stock) > 0 && Number(p.stock) < 25
+  ).length;
 
   return (
     <main className="dash">
@@ -42,7 +108,7 @@ export default function Dashboard() {
           <b>⌂ Overview</b>
           <b className="selected">▦ Products</b>
           <b>◫ Inventory</b>
-          <b>◉ Orders <i>6</i></b>
+          <b>◉ Orders</b>
           <b>◌ Analytics</b>
         </div>
 
@@ -56,7 +122,13 @@ export default function Dashboard() {
       <section className="dash-main">
         <header className="dash-head">
           <div>
-            <span className="muted">Wednesday, September 9</span>
+            <span className="muted">
+              {new Date().toLocaleDateString('en-IN', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </span>
             <h1>Products</h1>
           </div>
 
@@ -68,35 +140,35 @@ export default function Dashboard() {
           </button>
         </header>
 
+        {error && (
+          <div className="auth-error">
+            {error}
+          </div>
+        )}
+
         <div className="dash-stats">
           <div>
             <span>Total products</span>
             <strong>{products.length}</strong>
-            <small>+12 this month</small>
+            <small>Your catalog</small>
           </div>
 
           <div>
             <span>In stock</span>
-            <strong>
-              {products.filter((p) => +p[3] > 0).length}
-            </strong>
+            <strong>{inStock}</strong>
             <small>Healthy inventory</small>
           </div>
 
           <div>
             <span>Low stock</span>
-            <strong>
-              {products.filter(
-                (p) => +p[3] > 0 && +p[3] < 25
-              ).length}
-            </strong>
+            <strong>{lowStock}</strong>
             <small>Needs attention</small>
           </div>
 
           <div>
             <span>Orders today</span>
-            <strong>36</strong>
-            <small>+18.4%</small>
+            <strong>0</strong>
+            <small>Coming soon</small>
           </div>
         </div>
 
@@ -114,34 +186,44 @@ export default function Dashboard() {
             <span>STATUS</span>
           </div>
 
-          {products.map((p) => (
-            <div className="product-row" key={p[0]}>
-              <div>
-                <div className="product-thumb">
-                  {p[0].slice(0, 1)}
-                </div>
-                <b>{p[0]}</b>
-              </div>
-
-              <span>{p[1]}</span>
-              <span>{p[2]}</span>
-              <span>{p[3]}</span>
-
-              <span
-                className={
-                  +p[3] === 0
-                    ? 'status out'
-                    : 'status'
-                }
-              >
-                {+p[3] === 0
-                  ? 'Out of stock'
-                  : +p[3] < 25
-                  ? 'Low stock'
-                  : 'In stock'}
-              </span>
+          {loading ? (
+            <div style={{ padding: '30px' }}>
+              Loading products...
             </div>
-          ))}
+          ) : products.length === 0 ? (
+            <div style={{ padding: '30px' }}>
+              No products yet. Add your first product.
+            </div>
+          ) : (
+            products.map((p) => (
+              <div className="product-row" key={p.id}>
+                <div>
+                  <div className="product-thumb">
+                    {p.name?.slice(0, 1)}
+                  </div>
+                  <b>{p.name}</b>
+                </div>
+
+                <span>{p.category || 'New'}</span>
+                <span>₹{Number(p.price).toLocaleString('en-IN')}</span>
+                <span>{p.stock}</span>
+
+                <span
+                  className={
+                    Number(p.stock) === 0
+                      ? 'status out'
+                      : 'status'
+                  }
+                >
+                  {Number(p.stock) === 0
+                    ? 'Out of stock'
+                    : Number(p.stock) < 25
+                    ? 'Low stock'
+                    : 'In stock'}
+                </span>
+              </div>
+            ))
+          )}
         </div>
 
         {open && (
@@ -170,17 +252,29 @@ export default function Dashboard() {
               <label>
                 Price
                 <input
+                  type="number"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   placeholder="120"
                 />
               </label>
 
+              <label>
+                Stock
+                <input
+                  type="number"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  placeholder="10"
+                />
+              </label>
+
               <button
                 className="button primary"
                 onClick={add}
+                disabled={saving}
               >
-                Add product →
+                {saving ? 'Saving...' : 'Add product →'}
               </button>
             </div>
           </div>
@@ -188,4 +282,4 @@ export default function Dashboard() {
       </section>
     </main>
   );
-    }
+                  }
