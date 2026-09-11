@@ -105,11 +105,11 @@ export default function Dashboard() {
 
         <div className="side-section">
           <small>WORKSPACE</small>
-          <b>⌂ Overview</b>
-          <b className="selected">▦ Products</b>
-          <b>◫ Inventory</b>
-          <b>◉ Orders</b>
-          <b>◌ Analytics</b>
+          <a href="/dashboard">⌂ Overview</a>
+<a href="/dashboard" className="selected">▦ Products</a>
+<a href="/inventory">◫ Inventory</a>
+<a href="/orders">◉ Orders</a>
+<a href="/analytics">◌ Analytics</a>
         </div>
 
         <div className="side-section bottom">
