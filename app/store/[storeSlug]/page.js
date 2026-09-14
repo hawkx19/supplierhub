@@ -1,34 +1,28 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
-export default function PublicStore({ params }) {
+export default function PublicStore() {
+  const params = useParams();
+  const storeSlug = params?.storeSlug;
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [storeSlug, setStoreSlug] = useState('');
 
   useEffect(() => {
+    if (!storeSlug) return;
+
     const loadStore = async () => {
       setLoading(true);
       setError('');
 
-      const resolvedParams = await params;
-      const slug = resolvedParams?.storeSlug;
-
-      setStoreSlug(slug || '');
-
-      if (!slug) {
-        setError('Store not found.');
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('products')
         .select('id, name, category, price, stock')
-        .eq('store_slug', slug)
+        .eq('store_slug', storeSlug)
         .gt('stock', 0)
         .order('created_at', { ascending: false });
 
@@ -42,7 +36,7 @@ export default function PublicStore({ params }) {
     };
 
     loadStore();
-  }, [params]);
+  }, [storeSlug]);
 
   return (
     <main
@@ -58,16 +52,10 @@ export default function PublicStore({ params }) {
           margin: '0 auto',
         }}
       >
-        <header
-          style={{
-            marginBottom: '40px',
-          }}
-        >
-          <h1 style={{ marginBottom: '8px' }}>
-            SupplierHub Store
-          </h1>
+        <header style={{ marginBottom: '40px' }}>
+          <h1>SupplierHub Store</h1>
 
-          <p style={{ margin: 0 }}>
+          <p>
             {storeSlug
               ? `Store: ${storeSlug}`
               : 'Public supplier store'}
@@ -117,34 +105,22 @@ export default function PublicStore({ params }) {
                   padding: '20px',
                 }}
               >
-                <p
-                  style={{
-                    fontSize: '13px',
-                    marginBottom: '8px',
-                  }}
-                >
+                <p style={{ fontSize: '13px' }}>
                   {product.category || 'Product'}
                 </p>
 
-                <h2
-                  style={{
-                    margin: '0 0 12px',
-                  }}
-                >
-                  {product.name}
-                </h2>
+                <h2>{product.name}</h2>
 
                 <p
                   style={{
                     fontSize: '20px',
                     fontWeight: 'bold',
-                    margin: '0 0 8px',
                   }}
                 >
                   ₹{Number(product.price || 0).toLocaleString('en-IN')}
                 </p>
 
-                <p style={{ margin: 0 }}>
+                <p>
                   {Number(product.stock)} in stock
                 </p>
               </article>
