@@ -93,19 +93,6 @@ export default function PublicStore() {
       return;
     }
 
-    setProducts((currentProducts) =>
-      currentProducts
-        .map((product) =>
-          product.id === selectedProduct.id
-            ? {
-                ...product,
-                stock: product.stock - Number(quantity),
-              }
-            : product
-        )
-        .filter((product) => product.stock > 0)
-    );
-
     setOrderSuccess(true);
     setPlacingOrder(false);
   };
