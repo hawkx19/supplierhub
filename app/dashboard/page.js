@@ -13,6 +13,10 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [storeSlug, setStoreSlug] = useState('');
+  const [storeName, setStoreName] = useState('Your Store');
+  const [copied, setCopied] = useState(false);
+
   const loadProducts = async () => {
     setLoading(true);
     setError('');
@@ -42,8 +46,28 @@ export default function Dashboard() {
     setLoading(false);
   };
 
+  const loadStore = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('store_profiles')
+      .select('store_slug, store_name')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!error && data) {
+      setStoreSlug(data.store_slug);
+      setStoreName(data.store_name || 'Your Store');
+    }
+  };
+
   useEffect(() => {
     loadProducts();
+    loadStore();
   }, []);
 
   const add = async () => {
@@ -89,11 +113,31 @@ export default function Dashboard() {
     setSaving(false);
   };
 
-  const inStock = products.filter((p) => Number(p.stock) > 0).length;
+  const copyStoreLink = async () => {
+    if (!storeSlug) return;
+
+    const url = `${window.location.origin}/store/${storeSlug}`;
+
+    await navigator.clipboard.writeText(url);
+
+    setCopied(true);
+
+    setTimeout(() => {
+      setCopied(false);
+    }, 2000);
+  };
+
+  const inStock = products.filter(
+    (p) => Number(p.stock) > 0
+  ).length;
 
   const lowStock = products.filter(
     (p) => Number(p.stock) > 0 && Number(p.stock) < 25
   ).length;
+
+  const storeUrl = storeSlug
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/store/${storeSlug}`
+    : '';
 
   return (
     <main className="dash">
@@ -105,17 +149,30 @@ export default function Dashboard() {
 
         <div className="side-section">
           <small>WORKSPACE</small>
+
           <a href="/dashboard">⌂ Overview</a>
-<a href="/dashboard" className="selected">▦ Products</a>
-<a href="/inventory">◫ Inventory</a>
-<a href="/orders">◉ Orders</a>
-<a href="/analytics">◌ Analytics</a>
+
+          <a href="/dashboard" className="selected">
+            ▦ Products
+          </a>
+
+          <a href="/inventory">◫ Inventory</a>
+
+          <a href="/orders">◉ Orders</a>
+
+          <a href="/analytics">◌ Analytics</a>
         </div>
 
         <div className="side-section bottom">
           <small>STORE</small>
-          <b>↗ Public store</b>
-          <b>⚙ Settings</b>
+
+          <a href={storeSlug ? `/store/${storeSlug}` : '#'}>
+            ↗ Public store
+          </a>
+
+          <a href="/settings">
+            ⚙ Settings
+          </a>
         </div>
       </aside>
 
@@ -129,6 +186,7 @@ export default function Dashboard() {
                 day: 'numeric',
               })}
             </span>
+
             <h1>Products</h1>
           </div>
 
@@ -145,6 +203,73 @@ export default function Dashboard() {
             {error}
           </div>
         )}
+
+        {/* PUBLIC STORE */}
+        <div className="table-card" style={{ marginBottom: '20px' }}>
+          <div
+            style={{
+              padding: '24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '20px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <div className="eyebrow">YOUR PUBLIC STORE</div>
+
+              <h2 style={{ margin: '6px 0' }}>
+                {storeName}
+              </h2>
+
+              {storeUrl ? (
+                <p
+                  className="muted"
+                  style={{
+                    margin: 0,
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {storeUrl}
+                </p>
+              ) : (
+                <p className="muted">
+                  Loading your store link...
+                </p>
+              )}
+            </div>
+
+            {storeSlug && (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '10px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <a
+                  href={`/store/${storeSlug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button"
+                  style={{
+                    textDecoration: 'none',
+                  }}
+                >
+                  Open Store ↗
+                </a>
+
+                <button
+                  className="button primary"
+                  onClick={copyStoreLink}
+                >
+                  {copied ? 'Copied ✓' : 'Copy Store Link'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="dash-stats">
           <div>
@@ -196,16 +321,24 @@ export default function Dashboard() {
             </div>
           ) : (
             products.map((p) => (
-              <div className="product-row" key={p.id}>
+              <div
+                className="product-row"
+                key={p.id}
+              >
                 <div>
                   <div className="product-thumb">
                     {p.name?.slice(0, 1)}
                   </div>
+
                   <b>{p.name}</b>
                 </div>
 
                 <span>{p.category || 'New'}</span>
-                <span>₹{Number(p.price).toLocaleString('en-IN')}</span>
+
+                <span>
+                  ₹{Number(p.price).toLocaleString('en-IN')}
+                </span>
+
                 <span>{p.stock}</span>
 
                 <span
@@ -236,35 +369,46 @@ export default function Dashboard() {
                 ×
               </button>
 
-              <div className="eyebrow">NEW PRODUCT</div>
+              <div className="eyebrow">
+                NEW PRODUCT
+              </div>
 
               <h2>Add to catalog</h2>
 
               <label>
                 Product name
+
                 <input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) =>
+                    setName(e.target.value)
+                  }
                   placeholder="e.g. 12W LED Bulb"
                 />
               </label>
 
               <label>
                 Price
+
                 <input
                   type="number"
                   value={price}
-                  onChange={(e) => setPrice(e.target.value)}
+                  onChange={(e) =>
+                    setPrice(e.target.value)
+                  }
                   placeholder="120"
                 />
               </label>
 
               <label>
                 Stock
+
                 <input
                   type="number"
                   value={stock}
-                  onChange={(e) => setStock(e.target.value)}
+                  onChange={(e) =>
+                    setStock(e.target.value)
+                  }
                   placeholder="10"
                 />
               </label>
@@ -274,7 +418,9 @@ export default function Dashboard() {
                 onClick={add}
                 disabled={saving}
               >
-                {saving ? 'Saving...' : 'Add product →'}
+                {saving
+                  ? 'Saving...'
+                  : 'Add product →'}
               </button>
             </div>
           </div>
@@ -282,4 +428,4 @@ export default function Dashboard() {
       </section>
     </main>
   );
-                  }
+}
