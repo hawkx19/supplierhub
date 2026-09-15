@@ -10,21 +10,42 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = new URLSearchParams(window.location.search).get('code');
+      const params = new URLSearchParams(window.location.search);
 
-      if (!code) {
-        setError('Verification link is invalid or expired.');
+      const code = params.get('code');
+      const tokenHash = params.get('token_hash');
+      const type = params.get('type');
+
+      // PKCE/code verification flow
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (error) {
+          setError(error.message);
+          return;
+        }
+
+        router.replace('/dashboard');
         return;
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      // Email verification token flow
+      if (tokenHash && type === 'signup') {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'signup',
+        });
 
-      if (error) {
-        setError(error.message);
+        if (error) {
+          setError(error.message);
+          return;
+        }
+
+        router.replace('/dashboard');
         return;
       }
 
-      router.replace('/dashboard');
+      setError('Verification link is invalid or expired.');
     };
 
     handleCallback();
