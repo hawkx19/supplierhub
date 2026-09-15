@@ -26,10 +26,11 @@ export default function Signup() {
       email,
       password,
       options: {
-        data: {
-          business_name: businessName,
-        },
-      },
+  data: {
+    business_name: businessName,
+  },
+  emailRedirectTo: `${window.location.origin}/auth/callback`,
+},
     });
 
     if (error) {
