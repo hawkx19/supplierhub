@@ -181,16 +181,24 @@ export default function Home() {
           Build my store →
         </Link>
       </section>
+        
+<footer className="footer shell">
+  <div className="footer-ownership">
+    <span className="footer-copyright">
+      © 2026 SupplierHub™ — All Rights Reserved.
+    </span>
 
-      <footer className="footer shell">
-        <span>
-          SupplierHub © 2026
-        </span>
+    <strong className="footer-owner">
+      Owned &amp; Developed by Vansh Arora · Hawkx Industries
+    </strong>
 
-        <span>
-          Built for suppliers who want to move faster.
-        </span>
-      </footer>
-    </main>
-  );
-    }
+    <span className="footer-legal">
+      Unauthorized copying, reproduction, modification, or redistribution
+      of this website or its original content is prohibited.
+    </span>
+  </div>
+
+  <span className="footer-tagline">
+    Built for suppliers who want to move faster.
+  </span>
+</footer>
