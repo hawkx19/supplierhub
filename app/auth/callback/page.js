@@ -1,18 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
 export default function AuthCallback() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
   const [error, setError] = useState('');
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get('code');
+      const code = new URLSearchParams(window.location.search).get('code');
 
       if (!code) {
         setError('Verification link is invalid or expired.');
@@ -30,7 +28,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [searchParams, router]);
+  }, [router]);
 
   if (error) {
     return (
