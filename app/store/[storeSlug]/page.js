@@ -79,7 +79,7 @@ export default function PublicStore() {
     setPlacingOrder(true);
     setOrderError('');
 
-    const { data, error } = await supabase.rpc('place_order', {
+    const { error } = await supabase.rpc('place_order', {
       p_store_slug: storeSlug,
       p_product_id: selectedProduct.id,
       p_customer_name: customerName.trim(),
@@ -118,9 +118,10 @@ export default function PublicStore() {
     <main
       style={{
         minHeight: '100vh',
-        padding: '40px 20px',
+        padding: '45px 20px',
         fontFamily: 'Arial, sans-serif',
-        background: '#f7f8fa',
+        background: '#f4f6f8',
+        color: '#111827',
       }}
     >
       <div
@@ -129,10 +130,35 @@ export default function PublicStore() {
           margin: '0 auto',
         }}
       >
-        <header style={{ marginBottom: '40px' }}>
-          <h1>SupplierHub Store</h1>
+        {/* STORE HEADER */}
+        <header
+          style={{
+            marginBottom: '35px',
+            padding: '28px',
+            borderRadius: '18px',
+            background: '#111827',
+            color: '#ffffff',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '32px',
+              fontWeight: '800',
+              color: '#ffffff',
+            }}
+          >
+            SupplierHub Store
+          </h1>
 
-          <p>
+          <p
+            style={{
+              margin: '8px 0 0',
+              fontSize: '15px',
+              color: '#d1d5db',
+            }}
+          >
             {storeSlug
               ? `Store: ${storeSlug}`
               : 'Public supplier store'}
@@ -140,67 +166,111 @@ export default function PublicStore() {
         </header>
 
         {loading ? (
-          <p>Loading products...</p>
+          <div
+            style={{
+              padding: '40px',
+              textAlign: 'center',
+              background: '#ffffff',
+              borderRadius: '16px',
+              color: '#374151',
+            }}
+          >
+            Loading products...
+          </div>
         ) : error ? (
           <div
             style={{
-              padding: '25px',
-              background: '#fff',
-              border: '1px solid #ddd',
-              borderRadius: '12px',
+              padding: '30px',
+              background: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '16px',
+              color: '#111827',
             }}
           >
-            <h2>Store unavailable</h2>
-            <p>{error}</p>
+            <h2 style={{ color: '#111827' }}>Store unavailable</h2>
+            <p style={{ color: '#4b5563' }}>{error}</p>
           </div>
         ) : products.length === 0 ? (
           <div
             style={{
-              padding: '40px 20px',
-              background: '#fff',
-              border: '1px solid #ddd',
-              borderRadius: '12px',
+              padding: '50px 20px',
+              background: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '16px',
               textAlign: 'center',
             }}
           >
-            <h2>No products available</h2>
-            <p>This store currently has no products in stock.</p>
+            <h2
+              style={{
+                color: '#111827',
+                marginBottom: '8px',
+              }}
+            >
+              No products available
+            </h2>
+
+            <p
+              style={{
+                color: '#6b7280',
+                margin: 0,
+              }}
+            >
+              This store currently has no products in stock.
+            </p>
           </div>
         ) : (
           <section
             style={{
               display: 'grid',
               gridTemplateColumns:
-                'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '20px',
+                'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '22px',
             }}
           >
             {products.map((product) => (
               <article
                 key={product.id}
                 style={{
-                  background: '#fff',
-                  border: '1px solid #ddd',
-                  borderRadius: '14px',
-                  padding: '20px',
-                  boxShadow: '0 5px 20px rgba(0,0,0,0.05)',
+                  background: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '18px',
+                  padding: '24px',
+                  boxShadow: '0 8px 25px rgba(0,0,0,0.07)',
                 }}
               >
-                <p
+                <div
                   style={{
-                    fontSize: '13px',
-                    color: '#666',
+                    display: 'inline-block',
+                    padding: '6px 10px',
+                    borderRadius: '20px',
+                    background: '#eef2ff',
+                    color: '#4338ca',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    marginBottom: '14px',
                   }}
                 >
                   {product.category || 'Product'}
-                </p>
+                </div>
 
-                <h2>{product.name}</h2>
+                <h2
+                  style={{
+                    margin: '0 0 14px',
+                    fontSize: '23px',
+                    fontWeight: '800',
+                    color: '#111827',
+                    lineHeight: '1.25',
+                  }}
+                >
+                  {product.name}
+                </h2>
 
                 <p
                   style={{
-                    fontSize: '20px',
-                    fontWeight: 'bold',
+                    margin: '0 0 10px',
+                    fontSize: '25px',
+                    fontWeight: '800',
+                    color: '#111827',
                   }}
                 >
                   ₹
@@ -209,20 +279,27 @@ export default function PublicStore() {
                   )}
                 </p>
 
-                <p>{Number(product.stock)} in stock</p>
+                <p
+                  style={{
+                    margin: '0 0 22px',
+                    fontSize: '14px',
+                    color: '#4b5563',
+                  }}
+                >
+                  {Number(product.stock)} in stock
+                </p>
 
                 <button
                   onClick={() => openOrderForm(product)}
                   style={{
                     width: '100%',
-                    padding: '12px',
-                    marginTop: '10px',
+                    padding: '13px',
                     border: 'none',
-                    borderRadius: '10px',
+                    borderRadius: '11px',
                     background: '#111827',
-                    color: '#fff',
+                    color: '#ffffff',
                     fontSize: '15px',
-                    fontWeight: 'bold',
+                    fontWeight: '700',
                     cursor: 'pointer',
                   }}
                 >
@@ -234,12 +311,13 @@ export default function PublicStore() {
         )}
       </div>
 
+      {/* ORDER MODAL */}
       {selectedProduct && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.55)',
+            background: 'rgba(17,24,39,0.65)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -251,23 +329,57 @@ export default function PublicStore() {
             style={{
               width: '100%',
               maxWidth: '450px',
-              background: '#fff',
-              borderRadius: '18px',
-              padding: '25px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '26px',
+              boxShadow: '0 25px 70px rgba(0,0,0,0.25)',
+              color: '#111827',
             }}
           >
             {orderSuccess ? (
               <div style={{ textAlign: 'center' }}>
-                <h2>Order Placed Successfully 🎉</h2>
+                <div
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    margin: '0 auto 18px',
+                    borderRadius: '50%',
+                    background: '#dcfce7',
+                    color: '#15803d',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '28px',
+                    fontWeight: '800',
+                  }}
+                >
+                  ✓
+                </div>
 
-                <p>
+                <h2
+                  style={{
+                    color: '#111827',
+                    marginBottom: '10px',
+                  }}
+                >
+                  Order Placed Successfully!
+                </h2>
+
+                <p style={{ color: '#4b5563' }}>
                   Your order for{' '}
-                  <strong>{selectedProduct.name}</strong> has
-                  been placed.
+                  <strong style={{ color: '#111827' }}>
+                    {selectedProduct.name}
+                  </strong>{' '}
+                  has been placed.
                 </p>
 
-                <p>
+                <p
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: '800',
+                    color: '#111827',
+                  }}
+                >
                   Total: ₹
                   {totalAmount.toLocaleString('en-IN')}
                 </p>
@@ -276,13 +388,13 @@ export default function PublicStore() {
                   onClick={closeOrderForm}
                   style={{
                     width: '100%',
-                    padding: '12px',
+                    padding: '13px',
                     marginTop: '15px',
                     border: 'none',
-                    borderRadius: '10px',
+                    borderRadius: '11px',
                     background: '#111827',
-                    color: '#fff',
-                    fontWeight: 'bold',
+                    color: '#ffffff',
+                    fontWeight: '700',
                     cursor: 'pointer',
                   }}
                 >
@@ -291,18 +403,34 @@ export default function PublicStore() {
               </div>
             ) : (
               <>
-                <h2>Place Order</h2>
+                <h2
+                  style={{
+                    margin: '0 0 6px',
+                    color: '#111827',
+                  }}
+                >
+                  Place Order
+                </h2>
 
                 <p
                   style={{
-                    marginBottom: '20px',
-                    color: '#555',
+                    marginBottom: '22px',
+                    color: '#6b7280',
                   }}
                 >
                   {selectedProduct.name}
                 </p>
 
-                <label>Customer Name</label>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    color: '#374151',
+                    fontWeight: '600',
+                  }}
+                >
+                  Customer Name
+                </label>
 
                 <input
                   value={customerName}
@@ -313,15 +441,26 @@ export default function PublicStore() {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    marginTop: '6px',
-                    marginBottom: '15px',
-                    border: '1px solid #ccc',
-                    borderRadius: '9px',
+                    marginBottom: '16px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '10px',
                     boxSizing: 'border-box',
+                    color: '#111827',
+                    background: '#ffffff',
+                    fontSize: '15px',
                   }}
                 />
 
-                <label>Email (optional)</label>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    color: '#374151',
+                    fontWeight: '600',
+                  }}
+                >
+                  Email (optional)
+                </label>
 
                 <input
                   type="email"
@@ -333,15 +472,26 @@ export default function PublicStore() {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    marginTop: '6px',
-                    marginBottom: '15px',
-                    border: '1px solid #ccc',
-                    borderRadius: '9px',
+                    marginBottom: '16px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '10px',
                     boxSizing: 'border-box',
+                    color: '#111827',
+                    background: '#ffffff',
+                    fontSize: '15px',
                   }}
                 />
 
-                <label>Quantity</label>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    color: '#374151',
+                    fontWeight: '600',
+                  }}
+                >
+                  Quantity
+                </label>
 
                 <input
                   type="number"
@@ -354,33 +504,39 @@ export default function PublicStore() {
                   style={{
                     width: '100%',
                     padding: '12px',
-                    marginTop: '6px',
-                    marginBottom: '15px',
-                    border: '1px solid #ccc',
-                    borderRadius: '9px',
+                    marginBottom: '18px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '10px',
                     boxSizing: 'border-box',
+                    color: '#111827',
+                    background: '#ffffff',
+                    fontSize: '15px',
                   }}
                 />
 
                 <div
                   style={{
                     padding: '15px',
-                    background: '#f5f5f5',
-                    borderRadius: '10px',
-                    marginBottom: '15px',
+                    marginBottom: '18px',
+                    background: '#f3f4f6',
+                    borderRadius: '11px',
+                    color: '#111827',
+                    fontSize: '17px',
+                    fontWeight: '800',
                   }}
                 >
-                  <strong>
-                    Total: ₹
-                    {totalAmount.toLocaleString('en-IN')}
-                  </strong>
+                  Total: ₹
+                  {totalAmount.toLocaleString('en-IN')}
                 </div>
 
                 {orderError && (
                   <p
                     style={{
-                      color: '#d00',
-                      marginBottom: '15px',
+                      color: '#dc2626',
+                      background: '#fef2f2',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      fontSize: '14px',
                     }}
                   >
                     {orderError}
@@ -394,12 +550,12 @@ export default function PublicStore() {
                     width: '100%',
                     padding: '13px',
                     border: 'none',
-                    borderRadius: '10px',
+                    borderRadius: '11px',
                     background: placingOrder
-                      ? '#888'
+                      ? '#9ca3af'
                       : '#111827',
-                    color: '#fff',
-                    fontWeight: 'bold',
+                    color: '#ffffff',
+                    fontWeight: '700',
                     cursor: placingOrder
                       ? 'not-allowed'
                       : 'pointer',
@@ -417,9 +573,11 @@ export default function PublicStore() {
                     width: '100%',
                     padding: '12px',
                     marginTop: '10px',
-                    border: '1px solid #ccc',
-                    borderRadius: '10px',
-                    background: '#fff',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '11px',
+                    background: '#ffffff',
+                    color: '#374151',
+                    fontWeight: '600',
                     cursor: 'pointer',
                   }}
                 >
@@ -432,4 +590,4 @@ export default function PublicStore() {
       )}
     </main>
   );
-                          }
+              }
