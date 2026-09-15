@@ -1,326 +1,318 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { supabase } from '../../../lib/supabase';
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useParams } from "next/navigation";
 
-export default function PublicStore() {
+export default function StorePage() {
   const params = useParams();
   const storeSlug = params?.storeSlug;
 
   const [products, setProducts] = useState([]);
+  const [storeName, setStoreName] = useState("Supplier Store");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [placingOrder, setPlacingOrder] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(false);
-  const [orderError, setOrderError] = useState('');
+  const [orderSuccess, setOrderSuccess] = useState("");
 
   useEffect(() => {
     if (!storeSlug) return;
 
-    const loadStore = async () => {
-      setLoading(true);
-      setError('');
-
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, category, price, stock')
-        .eq('store_slug', storeSlug)
-        .gt('stock', 0)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        setError(error.message);
-      } else {
-        setProducts(data || []);
-      }
-
-      setLoading(false);
-    };
-
     loadStore();
+    loadProducts();
   }, [storeSlug]);
 
-  const openOrderForm = (product) => {
-    setSelectedProduct(product);
-    setCustomerName('');
-    setCustomerEmail('');
-    setQuantity(1);
-    setOrderError('');
-    setOrderSuccess(false);
-  };
+  async function loadStore() {
+    const { data, error } = await supabase
+      .from("store_profiles")
+      .select("store_name")
+      .eq("store_slug", storeSlug)
+      .single();
 
-  const closeOrderForm = () => {
+    if (!error && data) {
+      setStoreName(data.store_name || "Supplier Store");
+    }
+  }
+
+  async function loadProducts() {
+    setLoading(true);
+    setError("");
+
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, name, category, price, stock")
+      .eq("store_slug", storeSlug)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setError(error.message);
+      setProducts([]);
+    } else {
+      setProducts(data || []);
+    }
+
+    setLoading(false);
+  }
+
+  function openOrderForm(product) {
+    if (Number(product.stock) <= 0) return;
+
+    setSelectedProduct(product);
+    setCustomerName("");
+    setCustomerPhone("");
+    setQuantity(1);
+    setOrderSuccess("");
+  }
+
+  function closeOrderForm() {
     if (placingOrder) return;
 
     setSelectedProduct(null);
-    setOrderError('');
-    setOrderSuccess(false);
-  };
+    setCustomerName("");
+    setCustomerPhone("");
+    setQuantity(1);
+    setOrderSuccess("");
+  }
 
-  const placeOrder = async () => {
+  async function placeOrder() {
     if (!selectedProduct) return;
 
-    if (!customerName.trim()) {
-      setOrderError('Please enter your name.');
+    const name = customerName.trim();
+    const phone = customerPhone.trim();
+
+    if (!name) {
+      alert("Please enter your name.");
       return;
     }
 
-    if (quantity < 1 || quantity > selectedProduct.stock) {
-      setOrderError('Invalid quantity.');
+    if (!phone) {
+      alert("Please enter your phone number.");
+      return;
+    }
+
+    if (!/^[0-9+\-\s()]{7,20}$/.test(phone)) {
+      alert("Please enter a valid phone number.");
+      return;
+    }
+
+    if (quantity < 1) {
+      alert("Quantity must be at least 1.");
+      return;
+    }
+
+    if (quantity > Number(selectedProduct.stock)) {
+      alert("Requested quantity is greater than available stock.");
       return;
     }
 
     setPlacingOrder(true);
-    setOrderError('');
+    setOrderSuccess("");
 
-    const { error } = await supabase.rpc('place_order', {
+    const { error } = await supabase.rpc("place_order", {
       p_store_slug: storeSlug,
       p_product_id: selectedProduct.id,
-      p_customer_name: customerName.trim(),
-      p_customer_email: customerEmail.trim(),
+      p_customer_name: name,
+      p_customer_phone: phone,
       p_quantity: Number(quantity),
     });
 
+    setPlacingOrder(false);
+
     if (error) {
-      setOrderError(error.message);
-      setPlacingOrder(false);
+      alert(error.message);
       return;
     }
 
-    setOrderSuccess(true);
-    setPlacingOrder(false);
-  };
-
-  const totalAmount = selectedProduct
-    ? Number(selectedProduct.price || 0) * Number(quantity || 1)
-    : 0;
+    setOrderSuccess(
+      "Order placed successfully! The supplier will process your order."
+    );
+  }
 
   return (
     <main
       style={{
-        minHeight: '100vh',
-        padding: '40px 20px',
-        fontFamily: 'Arial, sans-serif',
-        background: '#f7f8fa',
-        color: '#111827',
+        minHeight: "100vh",
+        background:
+          "linear-gradient(135deg, #070b14 0%, #0d1424 50%, #111827 100%)",
+        color: "#fff",
+        padding: "40px 20px",
       }}
     >
       <div
         style={{
-          maxWidth: '1100px',
-          margin: '0 auto',
+          maxWidth: "1200px",
+          margin: "0 auto",
         }}
       >
         {/* STORE HEADER */}
-        <header
+        <div
           style={{
-            marginBottom: '40px',
-            padding: '25px',
-            background: '#111827',
-            borderRadius: '16px',
-            boxShadow: '0 8px 25px rgba(0,0,0,0.12)',
+            marginBottom: "40px",
+            textAlign: "center",
           }}
         >
           <h1
             style={{
-              margin: 0,
-              color: '#ffffff',
-              fontSize: '30px',
-              fontWeight: '800',
+              fontSize: "42px",
+              fontWeight: "800",
+              marginBottom: "10px",
             }}
           >
-            SupplierHub Store
+            {storeName}
           </h1>
 
           <p
             style={{
-              margin: '8px 0 0',
-              color: '#d1d5db',
-              fontSize: '15px',
+              color: "#9ca3af",
+              fontSize: "16px",
             }}
           >
-            {storeSlug
-              ? `Store: ${storeSlug}`
-              : 'Public supplier store'}
+            Browse products and place your order
           </p>
-        </header>
+        </div>
+
+        {/* ERROR */}
+        {error && (
+          <div
+            style={{
+              background: "#3f1d1d",
+              border: "1px solid #7f1d1d",
+              padding: "16px",
+              borderRadius: "12px",
+              marginBottom: "25px",
+              color: "#fecaca",
+            }}
+          >
+            {error}
+          </div>
+        )}
 
         {/* LOADING */}
         {loading ? (
           <div
             style={{
-              padding: '40px',
-              background: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '14px',
-              textAlign: 'center',
+              textAlign: "center",
+              padding: "80px 20px",
+              color: "#9ca3af",
             }}
           >
-            <p
-              style={{
-                margin: 0,
-                color: '#374151',
-                fontSize: '16px',
-              }}
-            >
-              Loading products...
-            </p>
-          </div>
-        ) : error ? (
-          /* ERROR */
-          <div
-            style={{
-              padding: '30px',
-              background: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '14px',
-            }}
-          >
-            <h2
-              style={{
-                color: '#111827',
-                marginTop: 0,
-              }}
-            >
-              Store unavailable
-            </h2>
-
-            <p
-              style={{
-                color: '#4b5563',
-              }}
-            >
-              {error}
-            </p>
+            Loading products...
           </div>
         ) : products.length === 0 ? (
-          /* EMPTY STORE */
           <div
             style={{
-              padding: '45px 20px',
-              background: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '14px',
-              textAlign: 'center',
+              textAlign: "center",
+              padding: "80px 20px",
+              color: "#9ca3af",
             }}
           >
-            <h2
-              style={{
-                marginTop: 0,
-                color: '#111827',
-              }}
-            >
+            <h2 style={{ color: "#fff", marginBottom: "8px" }}>
               No products available
             </h2>
-
-            <p
-              style={{
-                color: '#6b7280',
-              }}
-            >
-              This store currently has no products in stock.
-            </p>
+            <p>This store hasn't added any products yet.</p>
           </div>
         ) : (
           /* PRODUCTS */
-          <section
+          <div
             style={{
-              display: 'grid',
-              gridTemplateColumns:
-                'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '20px',
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+              gap: "22px",
             }}
           >
-            {products.map((product) => (
-              <article
-                key={product.id}
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '14px',
-                  padding: '20px',
-                  boxShadow: '0 5px 20px rgba(0,0,0,0.06)',
-                }}
-              >
-                {/* CATEGORY */}
-                <p
-                  style={{
-                    margin: '0 0 12px',
-                    fontSize: '13px',
-                    color: '#4b5563',
-                    fontWeight: '600',
-                  }}
-                >
-                  {product.category || 'Product'}
-                </p>
+            {products.map((product) => {
+              const stock = Number(product.stock) || 0;
+              const outOfStock = stock <= 0;
 
-                {/* PRODUCT NAME */}
-                <h2
+              return (
+                <div
+                  key={product.id}
                   style={{
-                    margin: '0 0 14px',
-                    fontSize: '23px',
-                    fontWeight: '800',
-                    lineHeight: '1.25',
-                    color: '#111827',
+                    background:
+                      "linear-gradient(145deg, rgba(31,41,55,.95), rgba(17,24,39,.95))",
+                    border: "1px solid rgba(255,255,255,.08)",
+                    borderRadius: "18px",
+                    padding: "22px",
+                    boxShadow: "0 15px 40px rgba(0,0,0,.25)",
                   }}
                 >
-                  {product.name}
-                </h2>
+                  <div
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "13px",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    {product.category || "New"}
+                  </div>
 
-                {/* PRICE */}
-                <p
-                  style={{
-                    margin: '0 0 10px',
-                    fontSize: '21px',
-                    fontWeight: '800',
-                    color: '#111827',
-                  }}
-                >
-                  ₹
-                  {Number(product.price || 0).toLocaleString(
-                    'en-IN'
+                  <h2
+                    style={{
+                      fontSize: "22px",
+                      margin: "0 0 12px",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {product.name}
+                  </h2>
+
+                  <div
+                    style={{
+                      fontSize: "25px",
+                      fontWeight: "800",
+                      marginBottom: "14px",
+                    }}
+                  >
+                    ₹{Number(product.price || 0).toLocaleString("en-IN")}
+                  </div>
+
+                  {outOfStock ? (
+                    <div
+                      style={{
+                        color: "#f87171",
+                        fontWeight: "700",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      Out of Stock
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        color: "#4ade80",
+                        fontWeight: "600",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      {stock} in stock
+                    </div>
                   )}
-                </p>
 
-                {/* STOCK */}
-                <p
-                  style={{
-                    margin: '0 0 18px',
-                    fontSize: '14px',
-                    color: '#4b5563',
-                    fontWeight: '500',
-                  }}
-                >
-                  {Number(product.stock)} in stock
-                </p>
-
-                {/* ORDER BUTTON */}
-                <button
-                  onClick={() => openOrderForm(product)}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    marginTop: '4px',
-                    border: 'none',
-                    borderRadius: '10px',
-                    background: '#111827',
-                    color: '#ffffff',
-                    fontSize: '15px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Place Order
-                </button>
-              </article>
-            ))}
-          </section>
+                  <button
+                    onClick={() => openOrderForm(product)}
+                    disabled={outOfStock}
+                    style={{
+                      width: "100%",
+                      padding: "13px",
+                      borderRadius: "10px",
+                      border: "none",
+                      background: outOfStock ? "#374151" : "#2563eb",
+                      color: outOfStock ? "#9ca3af" : "#fff",
+                      fontWeight: "700",
+                      cursor: outOfStock ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {outOfStock ? "Out of Stock" : "Place Order"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -328,124 +320,84 @@ export default function PublicStore() {
       {selectedProduct && (
         <div
           style={{
-            position: 'fixed',
+            position: "fixed",
             inset: 0,
-            background: 'rgba(0,0,0,0.60)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
+            background: "rgba(0,0,0,.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
             zIndex: 1000,
           }}
         >
           <div
             style={{
-              width: '100%',
-              maxWidth: '450px',
-              background: '#ffffff',
-              borderRadius: '18px',
-              padding: '25px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-              color: '#111827',
+              width: "100%",
+              maxWidth: "480px",
+              background: "#111827",
+              border: "1px solid rgba(255,255,255,.1)",
+              borderRadius: "18px",
+              padding: "25px",
+              boxShadow: "0 25px 80px rgba(0,0,0,.5)",
             }}
           >
+            <h2
+              style={{
+                fontSize: "25px",
+                marginBottom: "5px",
+              }}
+            >
+              Place Order
+            </h2>
+
+            <p
+              style={{
+                color: "#9ca3af",
+                marginBottom: "22px",
+              }}
+            >
+              {selectedProduct.name}
+            </p>
+
             {orderSuccess ? (
-              /* SUCCESS */
-              <div style={{ textAlign: 'center' }}>
+              <div>
                 <div
                   style={{
-                    width: '58px',
-                    height: '58px',
-                    margin: '0 auto 18px',
-                    borderRadius: '50%',
-                    background: '#dcfce7',
-                    color: '#15803d',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '28px',
-                    fontWeight: '800',
+                    background: "#12351f",
+                    border: "1px solid #166534",
+                    color: "#86efac",
+                    padding: "16px",
+                    borderRadius: "12px",
+                    lineHeight: "1.5",
+                    marginBottom: "18px",
                   }}
                 >
-                  ✓
+                  {orderSuccess}
                 </div>
-
-                <h2
-                  style={{
-                    margin: '0 0 12px',
-                    color: '#111827',
-                  }}
-                >
-                  Order Placed Successfully!
-                </h2>
-
-                <p
-                  style={{
-                    color: '#4b5563',
-                  }}
-                >
-                  Your order for{' '}
-                  <strong style={{ color: '#111827' }}>
-                    {selectedProduct.name}
-                  </strong>{' '}
-                  has been placed.
-                </p>
-
-                <p
-                  style={{
-                    fontSize: '18px',
-                    fontWeight: '800',
-                    color: '#111827',
-                  }}
-                >
-                  Total: ₹
-                  {totalAmount.toLocaleString('en-IN')}
-                </p>
 
                 <button
                   onClick={closeOrderForm}
                   style={{
-                    width: '100%',
-                    padding: '12px',
-                    marginTop: '15px',
-                    border: 'none',
-                    borderRadius: '10px',
-                    background: '#111827',
-                    color: '#ffffff',
-                    fontWeight: '700',
-                    cursor: 'pointer',
+                    width: "100%",
+                    padding: "13px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "#2563eb",
+                    color: "#fff",
+                    fontWeight: "700",
+                    cursor: "pointer",
                   }}
                 >
-                  Done
+                  Close
                 </button>
               </div>
             ) : (
-              /* ORDER FORM */
               <>
-                <h2
-                  style={{
-                    margin: '0 0 6px',
-                    color: '#111827',
-                  }}
-                >
-                  Place Order
-                </h2>
-
-                <p
-                  style={{
-                    margin: '0 0 22px',
-                    color: '#6b7280',
-                  }}
-                >
-                  {selectedProduct.name}
-                </p>
-
                 <label
                   style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    color: '#374151',
-                    fontWeight: '600',
+                    display: "block",
+                    marginBottom: "7px",
+                    color: "#d1d5db",
                   }}
                 >
                   Customer Name
@@ -453,60 +405,35 @@ export default function PublicStore() {
 
                 <input
                   value={customerName}
-                  onChange={(e) =>
-                    setCustomerName(e.target.value)
-                  }
+                  onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Enter your name"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    marginBottom: '16px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '9px',
-                    boxSizing: 'border-box',
-                    color: '#111827',
-                    background: '#ffffff',
-                    fontSize: '15px',
-                  }}
+                  style={inputStyle}
                 />
 
                 <label
                   style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    color: '#374151',
-                    fontWeight: '600',
+                    display: "block",
+                    marginBottom: "7px",
+                    color: "#d1d5db",
                   }}
                 >
-                  Email (optional)
+                  Phone Number *
                 </label>
 
                 <input
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) =>
-                    setCustomerEmail(e.target.value)
-                  }
-                  placeholder="Enter your email"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    marginBottom: '16px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '9px',
-                    boxSizing: 'border-box',
-                    color: '#111827',
-                    background: '#ffffff',
-                    fontSize: '15px',
-                  }}
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="Enter your phone number"
+                  required
+                  style={inputStyle}
                 />
 
                 <label
                   style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    color: '#374151',
-                    fontWeight: '600',
+                    display: "block",
+                    marginBottom: "7px",
+                    color: "#d1d5db",
                   }}
                 >
                   Quantity
@@ -515,99 +442,82 @@ export default function PublicStore() {
                 <input
                   type="number"
                   min="1"
-                  max={selectedProduct.stock}
+                  max={Number(selectedProduct.stock)}
                   value={quantity}
                   onChange={(e) =>
-                    setQuantity(Number(e.target.value))
+                    setQuantity(
+                      Math.max(
+                        1,
+                        Math.min(
+                          Number(selectedProduct.stock),
+                          Number(e.target.value) || 1
+                        )
+                      )
+                    )
                   }
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    marginBottom: '18px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '9px',
-                    boxSizing: 'border-box',
-                    color: '#111827',
-                    background: '#ffffff',
-                    fontSize: '15px',
-                  }}
+                  style={inputStyle}
                 />
 
-                {/* TOTAL */}
                 <div
                   style={{
-                    padding: '15px',
-                    marginBottom: '18px',
-                    background: '#f3f4f6',
-                    borderRadius: '10px',
-                    color: '#111827',
-                    fontSize: '17px',
-                    fontWeight: '800',
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: "18px",
+                    marginBottom: "20px",
+                    fontSize: "18px",
                   }}
                 >
-                  Total: ₹
-                  {totalAmount.toLocaleString('en-IN')}
+                  <span>Total</span>
+
+                  <strong>
+                    ₹
+                    {(
+                      Number(selectedProduct.price || 0) *
+                      Number(quantity || 1)
+                    ).toLocaleString("en-IN")}
+                  </strong>
                 </div>
 
-                {/* ERROR */}
-                {orderError && (
-                  <p
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                  }}
+                >
+                  <button
+                    onClick={closeOrderForm}
+                    disabled={placingOrder}
                     style={{
-                      color: '#dc2626',
-                      background: '#fef2f2',
-                      padding: '10px',
-                      borderRadius: '8px',
-                      fontSize: '14px',
+                      flex: 1,
+                      padding: "13px",
+                      borderRadius: "10px",
+                      border: "1px solid #374151",
+                      background: "#1f2937",
+                      color: "#fff",
+                      fontWeight: "700",
+                      cursor: "pointer",
                     }}
                   >
-                    {orderError}
-                  </p>
-                )}
+                    Cancel
+                  </button>
 
-                {/* CONFIRM */}
-                <button
-                  onClick={placeOrder}
-                  disabled={placingOrder}
-                  style={{
-                    width: '100%',
-                    padding: '13px',
-                    border: 'none',
-                    borderRadius: '10px',
-                    background: placingOrder
-                      ? '#9ca3af'
-                      : '#111827',
-                    color: '#ffffff',
-                    fontWeight: '700',
-                    cursor: placingOrder
-                      ? 'not-allowed'
-                      : 'pointer',
-                  }}
-                >
-                  {placingOrder
-                    ? 'Placing Order...'
-                    : 'Confirm Order'}
-                </button>
-
-                {/* CANCEL */}
-                <button
-                  onClick={closeOrderForm}
-                  disabled={placingOrder}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    marginTop: '10px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '10px',
-                    background: '#ffffff',
-                    color: '#374151',
-                    fontWeight: '600',
-                    cursor: placingOrder
-                      ? 'not-allowed'
-                      : 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
+                  <button
+                    onClick={placeOrder}
+                    disabled={placingOrder}
+                    style={{
+                      flex: 1,
+                      padding: "13px",
+                      borderRadius: "10px",
+                      border: "none",
+                      background: "#2563eb",
+                      color: "#fff",
+                      fontWeight: "700",
+                      cursor: placingOrder ? "wait" : "pointer",
+                    }}
+                  >
+                    {placingOrder ? "Placing..." : "Place Order"}
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -616,3 +526,16 @@ export default function PublicStore() {
     </main>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "12px 14px",
+  marginBottom: "16px",
+  borderRadius: "10px",
+  border: "1px solid #374151",
+  background: "#0b1220",
+  color: "#fff",
+  outline: "none",
+  fontSize: "15px",
+};
