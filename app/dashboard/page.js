@@ -6,9 +6,11 @@ import { supabase } from '../../lib/supabase';
 export default function Dashboard() {
   const [products, setProducts] = useState([]);
   const [open, setOpen] = useState(false);
+
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('1');
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -16,6 +18,14 @@ export default function Dashboard() {
   const [storeSlug, setStoreSlug] = useState('');
   const [storeName, setStoreName] = useState('Your Store');
   const [copied, setCopied] = useState(false);
+
+  // EDIT PRODUCT
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [editStock, setEditStock] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadProducts = async () => {
     setLoading(true);
@@ -70,8 +80,12 @@ export default function Dashboard() {
     loadStore();
   }, []);
 
+  // ADD PRODUCT
   const add = async () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('Product name is required.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -113,6 +127,70 @@ export default function Dashboard() {
     setSaving(false);
   };
 
+  // OPEN EDIT MODAL
+  const openEdit = (product) => {
+    setEditingProduct(product);
+
+    setEditName(product.name || '');
+    setEditCategory(product.category || '');
+    setEditPrice(String(product.price ?? ''));
+    setEditStock(String(product.stock ?? '0'));
+
+    setError('');
+  };
+
+  // CLOSE EDIT MODAL
+  const closeEdit = () => {
+    if (savingEdit) return;
+
+    setEditingProduct(null);
+    setEditName('');
+    setEditCategory('');
+    setEditPrice('');
+    setEditStock('');
+  };
+
+  // SAVE EDIT
+  const saveEdit = async () => {
+    if (!editingProduct) return;
+
+    if (!editName.trim()) {
+      setError('Product name is required.');
+      return;
+    }
+
+    if (Number(editPrice) < 0 || Number(editStock) < 0) {
+      setError('Price and stock cannot be negative.');
+      return;
+    }
+
+    setSavingEdit(true);
+    setError('');
+
+    const { data, error } = await supabase.rpc('update_product', {
+      p_product_id: editingProduct.id,
+      p_name: editName.trim(),
+      p_category: editCategory.trim(),
+      p_price: Number(editPrice) || 0,
+      p_stock: Number(editStock) || 0,
+    });
+
+    if (error) {
+      setError(error.message);
+      setSavingEdit(false);
+      return;
+    }
+
+    setProducts((current) =>
+      current.map((product) =>
+        product.id === editingProduct.id ? data : product
+      )
+    );
+
+    closeEdit();
+    setSavingEdit(false);
+  };
+
   const copyStoreLink = async () => {
     if (!storeSlug) return;
 
@@ -136,11 +214,17 @@ export default function Dashboard() {
   ).length;
 
   const storeUrl = storeSlug
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/store/${storeSlug}`
+    ? `${
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : ''
+      }/store/${storeSlug}`
     : '';
 
   return (
     <main className="dash">
+
+      {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-dot" />
@@ -176,7 +260,10 @@ export default function Dashboard() {
         </div>
       </aside>
 
+      {/* MAIN */}
       <section className="dash-main">
+
+        {/* HEADER */}
         <header className="dash-head">
           <div>
             <span className="muted">
@@ -205,7 +292,10 @@ export default function Dashboard() {
         )}
 
         {/* PUBLIC STORE */}
-        <div className="table-card" style={{ marginBottom: '20px' }}>
+        <div
+          className="table-card"
+          style={{ marginBottom: '20px' }}
+        >
           <div
             style={{
               padding: '24px',
@@ -217,7 +307,9 @@ export default function Dashboard() {
             }}
           >
             <div>
-              <div className="eyebrow">YOUR PUBLIC STORE</div>
+              <div className="eyebrow">
+                YOUR PUBLIC STORE
+              </div>
 
               <h2 style={{ margin: '6px 0' }}>
                 {storeName}
@@ -264,14 +356,18 @@ export default function Dashboard() {
                   className="button primary"
                   onClick={copyStoreLink}
                 >
-                  {copied ? 'Copied ✓' : 'Copy Store Link'}
+                  {copied
+                    ? 'Copied ✓'
+                    : 'Copy Store Link'}
                 </button>
               </div>
             )}
           </div>
         </div>
 
+        {/* STATS */}
         <div className="dash-stats">
+
           <div>
             <span>Total products</span>
             <strong>{products.length}</strong>
@@ -295,20 +391,35 @@ export default function Dashboard() {
             <strong>0</strong>
             <small>Coming soon</small>
           </div>
+
         </div>
 
+        {/* PRODUCT TABLE */}
         <div className="table-card">
+
           <div className="table-toolbar">
-            <input placeholder="⌕  Search products..." />
-            <span>All categories ▾</span>
+            <input
+              placeholder="⌕  Search products..."
+            />
+
+            <span>
+              All categories ▾
+            </span>
           </div>
 
-          <div className="table-head">
+          <div
+            className="table-head"
+            style={{
+              gridTemplateColumns:
+                '2fr 1fr 1fr 1fr 1fr 90px',
+            }}
+          >
             <span>PRODUCT</span>
             <span>CATEGORY</span>
             <span>PRICE</span>
             <span>STOCK</span>
             <span>STATUS</span>
+            <span>ACTION</span>
           </div>
 
           {loading ? (
@@ -324,7 +435,13 @@ export default function Dashboard() {
               <div
                 className="product-row"
                 key={p.id}
+                style={{
+                  gridTemplateColumns:
+                    '2fr 1fr 1fr 1fr 1fr 90px',
+                }}
               >
+
+                {/* PRODUCT */}
                 <div>
                   <div className="product-thumb">
                     {p.name?.slice(0, 1)}
@@ -333,14 +450,25 @@ export default function Dashboard() {
                   <b>{p.name}</b>
                 </div>
 
-                <span>{p.category || 'New'}</span>
-
+                {/* CATEGORY */}
                 <span>
-                  ₹{Number(p.price).toLocaleString('en-IN')}
+                  {p.category || 'New'}
                 </span>
 
-                <span>{p.stock}</span>
+                {/* PRICE */}
+                <span>
+                  ₹
+                  {Number(
+                    p.price
+                  ).toLocaleString('en-IN')}
+                </span>
 
+                {/* STOCK */}
+                <span>
+                  {p.stock}
+                </span>
+
+                {/* STATUS */}
                 <span
                   className={
                     Number(p.stock) === 0
@@ -354,14 +482,31 @@ export default function Dashboard() {
                     ? 'Low stock'
                     : 'In stock'}
                 </span>
+
+                {/* EDIT */}
+                <button
+                  className="button"
+                  onClick={() => openEdit(p)}
+                  style={{
+                    padding: '7px 10px',
+                    fontSize: '13px',
+                  }}
+                >
+                  Edit
+                </button>
+
               </div>
             ))
           )}
+
         </div>
 
+        {/* ADD PRODUCT MODAL */}
         {open && (
           <div className="modal-backdrop">
+
             <div className="modal">
+
               <button
                 className="modal-close"
                 onClick={() => setOpen(false)}
@@ -373,7 +518,9 @@ export default function Dashboard() {
                 NEW PRODUCT
               </div>
 
-              <h2>Add to catalog</h2>
+              <h2>
+                Add to catalog
+              </h2>
 
               <label>
                 Product name
@@ -392,6 +539,7 @@ export default function Dashboard() {
 
                 <input
                   type="number"
+                  min="0"
                   value={price}
                   onChange={(e) =>
                     setPrice(e.target.value)
@@ -405,6 +553,7 @@ export default function Dashboard() {
 
                 <input
                   type="number"
+                  min="0"
                   value={stock}
                   onChange={(e) =>
                     setStock(e.target.value)
@@ -422,10 +571,99 @@ export default function Dashboard() {
                   ? 'Saving...'
                   : 'Add product →'}
               </button>
+
             </div>
           </div>
         )}
+
+        {/* EDIT PRODUCT MODAL */}
+        {editingProduct && (
+          <div className="modal-backdrop">
+
+            <div className="modal">
+
+              <button
+                className="modal-close"
+                onClick={closeEdit}
+              >
+                ×
+              </button>
+
+              <div className="eyebrow">
+                EDIT PRODUCT
+              </div>
+
+              <h2>
+                Update product
+              </h2>
+
+              <label>
+                Product name
+
+                <input
+                  value={editName}
+                  onChange={(e) =>
+                    setEditName(e.target.value)
+                  }
+                  placeholder="Product name"
+                />
+              </label>
+
+              <label>
+                Category
+
+                <input
+                  value={editCategory}
+                  onChange={(e) =>
+                    setEditCategory(e.target.value)
+                  }
+                  placeholder="e.g. Electronics"
+                />
+              </label>
+
+              <label>
+                Price
+
+                <input
+                  type="number"
+                  min="0"
+                  value={editPrice}
+                  onChange={(e) =>
+                    setEditPrice(e.target.value)
+                  }
+                  placeholder="120"
+                />
+              </label>
+
+              <label>
+                Stock
+
+                <input
+                  type="number"
+                  min="0"
+                  value={editStock}
+                  onChange={(e) =>
+                    setEditStock(e.target.value)
+                  }
+                  placeholder="10"
+                />
+              </label>
+
+              <button
+                className="button primary"
+                onClick={saveEdit}
+                disabled={savingEdit}
+              >
+                {savingEdit
+                  ? 'Saving...'
+                  : 'Save changes →'}
+              </button>
+
+            </div>
+          </div>
+        )}
+
       </section>
     </main>
   );
-}
+            }
