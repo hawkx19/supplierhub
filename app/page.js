@@ -202,3 +202,6 @@ export default function Home() {
     Built for suppliers who want to move faster.
   </span>
 </footer>
+    </main>
+  );
+}
