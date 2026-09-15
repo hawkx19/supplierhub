@@ -150,7 +150,7 @@ export default function Dashboard() {
         <div className="side-section">
           <small>WORKSPACE</small>
 
-          <a href="/dashboard">⌂ Overview</a>
+          <a href="/overview">⌂ Overview</a>
 
           <a href="/dashboard" className="selected">
             ▦ Products
