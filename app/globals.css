@@ -147,6 +147,7 @@ button {
   border-radius: 50%;
   filter: blur(50px);
   opacity: 0.22;
+  pointer-events: none;
 }
 
 .orb-a {
