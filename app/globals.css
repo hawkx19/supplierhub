@@ -1913,3 +1913,37 @@ body {
     transition-duration: 0.01ms !important;
   }
   }
+.footer {
+  padding-top: 34px;
+  padding-bottom: 34px;
+}
+
+.footer-ownership {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.footer-copyright {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.footer-owner {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.footer-legal {
+  max-width: 720px;
+  font-size: 11px;
+  line-height: 1.6;
+  opacity: 0.5;
+}
+
+.footer-tagline {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 18px;
+}
