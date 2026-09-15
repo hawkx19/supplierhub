@@ -28,7 +28,7 @@ export default function Orders() {
       .select(`
         id,
         customer_name,
-        customer_email,
+        customer_phone,
         quantity,
         total_amount,
         status,
@@ -111,8 +111,11 @@ export default function Orders() {
       }}
     >
       <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+
         <div style={{ marginBottom: '30px' }}>
-          <h1 style={{ marginBottom: '8px' }}>Orders</h1>
+          <h1 style={{ marginBottom: '8px' }}>
+            Orders
+          </h1>
 
           <p style={{ color: '#6b7280', margin: 0 }}>
             View and manage orders from your store.
@@ -128,10 +131,25 @@ export default function Orders() {
             marginBottom: '30px',
           }}
         >
-          <StatCard title="Total Orders" value={orders.length} />
-          <StatCard title="Pending" value={pendingCount} />
-          <StatCard title="Completed" value={completedCount} />
-          <StatCard title="Rejected" value={cancelledCount} />
+          <StatCard
+            title="Total Orders"
+            value={orders.length}
+          />
+
+          <StatCard
+            title="Pending"
+            value={pendingCount}
+          />
+
+          <StatCard
+            title="Completed"
+            value={completedCount}
+          />
+
+          <StatCard
+            title="Rejected"
+            value={cancelledCount}
+          />
         </div>
 
         {error && (
@@ -169,10 +187,13 @@ export default function Orders() {
               textAlign: 'center',
             }}
           >
-            <h2 style={{ marginTop: 0 }}>No orders yet</h2>
+            <h2 style={{ marginTop: 0 }}>
+              No orders yet
+            </h2>
 
             <p style={{ color: '#6b7280' }}>
-              Orders placed through your public store will appear here.
+              Orders placed through your public store
+              will appear here.
             </p>
           </div>
         ) : (
@@ -189,6 +210,7 @@ export default function Orders() {
                     '0 4px 14px rgba(0,0,0,0.04)',
                 }}
               >
+
                 <div
                   style={{
                     display: 'flex',
@@ -218,7 +240,9 @@ export default function Orders() {
                     </div>
                   </div>
 
-                  <StatusBadge status={order.status} />
+                  <StatusBadge
+                    status={order.status}
+                  />
                 </div>
 
                 <div
@@ -230,6 +254,7 @@ export default function Orders() {
                     marginBottom: '20px',
                   }}
                 >
+
                   <Info
                     label="Quantity"
                     value={order.quantity}
@@ -243,9 +268,9 @@ export default function Orders() {
                   />
 
                   <Info
-                    label="Customer Email"
+                    label="Customer Phone"
                     value={
-                      order.customer_email ||
+                      order.customer_phone ||
                       'Not provided'
                     }
                   />
@@ -256,6 +281,7 @@ export default function Orders() {
                       order.created_at
                     ).toLocaleString()}
                   />
+
                 </div>
 
                 {order.status === 'pending' && (
@@ -266,6 +292,7 @@ export default function Orders() {
                       flexWrap: 'wrap',
                     }}
                   >
+
                     <button
                       onClick={() =>
                         completeOrder(order.id)
@@ -315,12 +342,15 @@ export default function Orders() {
                         ? 'Processing...'
                         : 'Order Rejected'}
                     </button>
+
                   </div>
                 )}
+
               </div>
             ))}
           </div>
         )}
+
       </div>
     </main>
   );
@@ -409,4 +439,4 @@ function StatusBadge({ status }) {
         : 'Rejected'}
     </span>
   );
-}
+                }
