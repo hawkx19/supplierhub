@@ -10,15 +10,20 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(
+        window.location.hash.substring(1)
+      );
 
-      const code = params.get('code');
-      const tokenHash = params.get('token_hash');
-      const type = params.get('type');
+      const queryParams = new URLSearchParams(window.location.search);
 
-      // PKCE/code verification flow
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const code = queryParams.get('code');
+
+      // PKCE / code flow
       if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        const { error } =
+          await supabase.auth.exchangeCodeForSession(code);
 
         if (error) {
           setError(error.message);
@@ -29,11 +34,11 @@ export default function AuthCallback() {
         return;
       }
 
-      // Email verification token flow
-      if (tokenHash && type === 'signup') {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: 'signup',
+      // Supabase hash / implicit flow
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
         });
 
         if (error) {
