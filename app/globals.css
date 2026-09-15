@@ -205,6 +205,8 @@ button {
   justify-content: center;
   gap: 12px;
   margin: 30px 0;
+  position: relative;
+  z-index: 10;
 }
 
 /* DASHBOARD PREVIEW */
