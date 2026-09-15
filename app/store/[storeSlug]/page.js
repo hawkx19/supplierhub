@@ -118,9 +118,9 @@ export default function PublicStore() {
     <main
       style={{
         minHeight: '100vh',
-        padding: '45px 20px',
+        padding: '40px 20px',
         fontFamily: 'Arial, sans-serif',
-        background: '#f4f6f8',
+        background: '#f7f8fa',
         color: '#111827',
       }}
     >
@@ -133,20 +133,19 @@ export default function PublicStore() {
         {/* STORE HEADER */}
         <header
           style={{
-            marginBottom: '35px',
-            padding: '28px',
-            borderRadius: '18px',
+            marginBottom: '40px',
+            padding: '25px',
             background: '#111827',
-            color: '#ffffff',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+            borderRadius: '16px',
+            boxShadow: '0 8px 25px rgba(0,0,0,0.12)',
           }}
         >
           <h1
             style={{
               margin: 0,
-              fontSize: '32px',
-              fontWeight: '800',
               color: '#ffffff',
+              fontSize: '30px',
+              fontWeight: '800',
             }}
           >
             SupplierHub Store
@@ -155,8 +154,8 @@ export default function PublicStore() {
           <p
             style={{
               margin: '8px 0 0',
-              fontSize: '15px',
               color: '#d1d5db',
+              fontSize: '15px',
             }}
           >
             {storeSlug
@@ -165,45 +164,69 @@ export default function PublicStore() {
           </p>
         </header>
 
+        {/* LOADING */}
         {loading ? (
           <div
             style={{
               padding: '40px',
-              textAlign: 'center',
               background: '#ffffff',
-              borderRadius: '16px',
-              color: '#374151',
+              border: '1px solid #e5e7eb',
+              borderRadius: '14px',
+              textAlign: 'center',
             }}
           >
-            Loading products...
+            <p
+              style={{
+                margin: 0,
+                color: '#374151',
+                fontSize: '16px',
+              }}
+            >
+              Loading products...
+            </p>
           </div>
         ) : error ? (
+          /* ERROR */
           <div
             style={{
               padding: '30px',
               background: '#ffffff',
               border: '1px solid #e5e7eb',
-              borderRadius: '16px',
-              color: '#111827',
-            }}
-          >
-            <h2 style={{ color: '#111827' }}>Store unavailable</h2>
-            <p style={{ color: '#4b5563' }}>{error}</p>
-          </div>
-        ) : products.length === 0 ? (
-          <div
-            style={{
-              padding: '50px 20px',
-              background: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '16px',
-              textAlign: 'center',
+              borderRadius: '14px',
             }}
           >
             <h2
               style={{
                 color: '#111827',
-                marginBottom: '8px',
+                marginTop: 0,
+              }}
+            >
+              Store unavailable
+            </h2>
+
+            <p
+              style={{
+                color: '#4b5563',
+              }}
+            >
+              {error}
+            </p>
+          </div>
+        ) : products.length === 0 ? (
+          /* EMPTY STORE */
+          <div
+            style={{
+              padding: '45px 20px',
+              background: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '14px',
+              textAlign: 'center',
+            }}
+          >
+            <h2
+              style={{
+                marginTop: 0,
+                color: '#111827',
               }}
             >
               No products available
@@ -212,19 +235,19 @@ export default function PublicStore() {
             <p
               style={{
                 color: '#6b7280',
-                margin: 0,
               }}
             >
               This store currently has no products in stock.
             </p>
           </div>
         ) : (
+          /* PRODUCTS */
           <section
             style={{
               display: 'grid',
               gridTemplateColumns:
-                'repeat(auto-fit, minmax(240px, 1fr))',
-              gap: '22px',
+                'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '20px',
             }}
           >
             {products.map((product) => (
@@ -233,42 +256,41 @@ export default function PublicStore() {
                 style={{
                   background: '#ffffff',
                   border: '1px solid #e5e7eb',
-                  borderRadius: '18px',
-                  padding: '24px',
-                  boxShadow: '0 8px 25px rgba(0,0,0,0.07)',
+                  borderRadius: '14px',
+                  padding: '20px',
+                  boxShadow: '0 5px 20px rgba(0,0,0,0.06)',
                 }}
               >
-                <div
+                {/* CATEGORY */}
+                <p
                   style={{
-                    display: 'inline-block',
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    background: '#eef2ff',
-                    color: '#4338ca',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    marginBottom: '14px',
+                    margin: '0 0 12px',
+                    fontSize: '13px',
+                    color: '#4b5563',
+                    fontWeight: '600',
                   }}
                 >
                   {product.category || 'Product'}
-                </div>
+                </p>
 
+                {/* PRODUCT NAME */}
                 <h2
                   style={{
                     margin: '0 0 14px',
                     fontSize: '23px',
                     fontWeight: '800',
-                    color: '#111827',
                     lineHeight: '1.25',
+                    color: '#111827',
                   }}
                 >
                   {product.name}
                 </h2>
 
+                {/* PRICE */}
                 <p
                   style={{
                     margin: '0 0 10px',
-                    fontSize: '25px',
+                    fontSize: '21px',
                     fontWeight: '800',
                     color: '#111827',
                   }}
@@ -279,23 +301,27 @@ export default function PublicStore() {
                   )}
                 </p>
 
+                {/* STOCK */}
                 <p
                   style={{
-                    margin: '0 0 22px',
+                    margin: '0 0 18px',
                     fontSize: '14px',
                     color: '#4b5563',
+                    fontWeight: '500',
                   }}
                 >
                   {Number(product.stock)} in stock
                 </p>
 
+                {/* ORDER BUTTON */}
                 <button
                   onClick={() => openOrderForm(product)}
                   style={{
                     width: '100%',
-                    padding: '13px',
+                    padding: '12px',
+                    marginTop: '4px',
                     border: 'none',
-                    borderRadius: '11px',
+                    borderRadius: '10px',
                     background: '#111827',
                     color: '#ffffff',
                     fontSize: '15px',
@@ -317,7 +343,7 @@ export default function PublicStore() {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(17,24,39,0.65)',
+            background: 'rgba(0,0,0,0.60)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -330,18 +356,19 @@ export default function PublicStore() {
               width: '100%',
               maxWidth: '450px',
               background: '#ffffff',
-              borderRadius: '20px',
-              padding: '26px',
-              boxShadow: '0 25px 70px rgba(0,0,0,0.25)',
+              borderRadius: '18px',
+              padding: '25px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
               color: '#111827',
             }}
           >
             {orderSuccess ? (
+              /* SUCCESS */
               <div style={{ textAlign: 'center' }}>
                 <div
                   style={{
-                    width: '60px',
-                    height: '60px',
+                    width: '58px',
+                    height: '58px',
                     margin: '0 auto 18px',
                     borderRadius: '50%',
                     background: '#dcfce7',
@@ -358,14 +385,18 @@ export default function PublicStore() {
 
                 <h2
                   style={{
+                    margin: '0 0 12px',
                     color: '#111827',
-                    marginBottom: '10px',
                   }}
                 >
                   Order Placed Successfully!
                 </h2>
 
-                <p style={{ color: '#4b5563' }}>
+                <p
+                  style={{
+                    color: '#4b5563',
+                  }}
+                >
                   Your order for{' '}
                   <strong style={{ color: '#111827' }}>
                     {selectedProduct.name}
@@ -388,10 +419,10 @@ export default function PublicStore() {
                   onClick={closeOrderForm}
                   style={{
                     width: '100%',
-                    padding: '13px',
+                    padding: '12px',
                     marginTop: '15px',
                     border: 'none',
-                    borderRadius: '11px',
+                    borderRadius: '10px',
                     background: '#111827',
                     color: '#ffffff',
                     fontWeight: '700',
@@ -402,6 +433,7 @@ export default function PublicStore() {
                 </button>
               </div>
             ) : (
+              /* ORDER FORM */
               <>
                 <h2
                   style={{
@@ -414,7 +446,7 @@ export default function PublicStore() {
 
                 <p
                   style={{
-                    marginBottom: '22px',
+                    margin: '0 0 22px',
                     color: '#6b7280',
                   }}
                 >
@@ -443,7 +475,7 @@ export default function PublicStore() {
                     padding: '12px',
                     marginBottom: '16px',
                     border: '1px solid #d1d5db',
-                    borderRadius: '10px',
+                    borderRadius: '9px',
                     boxSizing: 'border-box',
                     color: '#111827',
                     background: '#ffffff',
@@ -474,7 +506,7 @@ export default function PublicStore() {
                     padding: '12px',
                     marginBottom: '16px',
                     border: '1px solid #d1d5db',
-                    borderRadius: '10px',
+                    borderRadius: '9px',
                     boxSizing: 'border-box',
                     color: '#111827',
                     background: '#ffffff',
@@ -506,7 +538,7 @@ export default function PublicStore() {
                     padding: '12px',
                     marginBottom: '18px',
                     border: '1px solid #d1d5db',
-                    borderRadius: '10px',
+                    borderRadius: '9px',
                     boxSizing: 'border-box',
                     color: '#111827',
                     background: '#ffffff',
@@ -514,12 +546,13 @@ export default function PublicStore() {
                   }}
                 />
 
+                {/* TOTAL */}
                 <div
                   style={{
                     padding: '15px',
                     marginBottom: '18px',
                     background: '#f3f4f6',
-                    borderRadius: '11px',
+                    borderRadius: '10px',
                     color: '#111827',
                     fontSize: '17px',
                     fontWeight: '800',
@@ -529,6 +562,7 @@ export default function PublicStore() {
                   {totalAmount.toLocaleString('en-IN')}
                 </div>
 
+                {/* ERROR */}
                 {orderError && (
                   <p
                     style={{
@@ -543,6 +577,7 @@ export default function PublicStore() {
                   </p>
                 )}
 
+                {/* CONFIRM */}
                 <button
                   onClick={placeOrder}
                   disabled={placingOrder}
@@ -550,7 +585,7 @@ export default function PublicStore() {
                     width: '100%',
                     padding: '13px',
                     border: 'none',
-                    borderRadius: '11px',
+                    borderRadius: '10px',
                     background: placingOrder
                       ? '#9ca3af'
                       : '#111827',
@@ -566,6 +601,7 @@ export default function PublicStore() {
                     : 'Confirm Order'}
                 </button>
 
+                {/* CANCEL */}
                 <button
                   onClick={closeOrderForm}
                   disabled={placingOrder}
@@ -574,11 +610,13 @@ export default function PublicStore() {
                     padding: '12px',
                     marginTop: '10px',
                     border: '1px solid #d1d5db',
-                    borderRadius: '11px',
+                    borderRadius: '10px',
                     background: '#ffffff',
                     color: '#374151',
                     fontWeight: '600',
-                    cursor: 'pointer',
+                    cursor: placingOrder
+                      ? 'not-allowed'
+                      : 'pointer',
                   }}
                 >
                   Cancel
@@ -590,4 +628,4 @@ export default function PublicStore() {
       )}
     </main>
   );
-              }
+}
