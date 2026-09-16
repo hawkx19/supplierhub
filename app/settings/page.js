@@ -124,80 +124,96 @@ export default function Settings() {
 
     setSavingStore(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setError('Please login again.');
-      setSavingStore(false);
-      return;
-    }
+      if (!user) {
+        setError('Please login again.');
+        return;
+      }
 
-    /*
-      If slug is unchanged, only update the store name.
-      If slug changed, first check whether another store
-      is already using it.
-    */
-
-    if (cleanSlug !== originalSlug) {
-      const { data: existingStore, error: slugCheckError } =
-        await supabase
+      /*
+        Check whether another store is already
+        using this slug.
+      */
+      if (cleanSlug !== originalSlug) {
+        const {
+          data: existingStore,
+          error: slugCheckError,
+        } = await supabase
           .from('store_profiles')
           .select('user_id')
           .eq('store_slug', cleanSlug)
           .maybeSingle();
 
-      if (slugCheckError) {
-        setError(slugCheckError.message);
-        setSavingStore(false);
+        if (slugCheckError) {
+          throw slugCheckError;
+        }
+
+        if (
+          existingStore &&
+          existingStore.user_id !== user.id
+        ) {
+          setError(
+            'This store link is already taken. Please choose another one.'
+          );
+          return;
+        }
+      }
+
+      /*
+        IMPORTANT:
+        This RPC updates both:
+        1. Store profile
+        2. All existing products
+
+        So when the store slug changes,
+        existing products automatically move
+        to the new public store URL.
+      */
+      const { error: saveError } =
+        await supabase.rpc(
+          'update_store_settings',
+          {
+            p_store_name: cleanName,
+            p_store_slug: cleanSlug,
+          }
+        );
+
+      if (saveError) {
+        if (
+          saveError.code === '23505' ||
+          saveError.message
+            ?.toLowerCase()
+            .includes('duplicate')
+        ) {
+          setError(
+            'This store link is already taken. Please choose another one.'
+          );
+        } else {
+          setError(saveError.message);
+        }
+
         return;
       }
 
-      if (
-        existingStore &&
-        existingStore.user_id !== user.id
-      ) {
-        setError(
-          'This store link is already taken. Please choose another one.'
-        );
-        setSavingStore(false);
-        return;
-      }
-    }
+      setStoreName(cleanName);
+      setStoreSlug(cleanSlug);
+      setOriginalSlug(cleanSlug);
 
-    const { error: updateError } = await supabase
-      .from('store_profiles')
-      .update({
-        store_name: cleanName,
-        store_slug: cleanSlug,
-      })
-      .eq('user_id', user.id);
-
-    if (updateError) {
-      if (
-        updateError.code === '23505' ||
-        updateError.message
-          ?.toLowerCase()
-          .includes('duplicate')
-      ) {
-        setError(
-          'This store link is already taken. Please choose another one.'
-        );
-      } else {
-        setError(updateError.message);
-      }
-
+      setMessage(
+        'Store settings saved successfully. Your products are synced with the new store link.'
+      );
+    } catch (err) {
+      setError(
+        err?.message ||
+          'Something went wrong while saving store settings.'
+      );
+    } finally {
       setSavingStore(false);
-      return;
     }
-
-    setStoreName(cleanName);
-    setStoreSlug(cleanSlug);
-    setOriginalSlug(cleanSlug);
-
-    setMessage('Store settings saved successfully.');
-    setSavingStore(false);
   };
 
   return (
