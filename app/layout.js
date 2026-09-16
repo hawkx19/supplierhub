@@ -1,4 +1,5 @@
 import "./globals.css";
+import AnalyticsTracker from "./analytics-tracker";
 
 export const metadata = {
   title: "SupplierHub — Local Supply, Upgraded.",
@@ -9,7 +10,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AnalyticsTracker />
+        {children}
+      </body>
     </html>
   );
 }
