@@ -45,7 +45,9 @@ export default function StorePage() {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, name, category, price, stock")
+      .select(
+        "id, name, category, price, stock, image_url, image_urls"
+      )
       .eq("store_slug", storeSlug)
       .order("created_at", { ascending: false });
 
@@ -214,6 +216,7 @@ export default function StorePage() {
             <h2 style={{ color: "#fff", marginBottom: "8px" }}>
               No products available
             </h2>
+
             <p>This store hasn't added any products yet.</p>
           </div>
         ) : (
@@ -221,7 +224,8 @@ export default function StorePage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(250px, 1fr))",
               gap: "22px",
             }}
           >
@@ -238,9 +242,13 @@ export default function StorePage() {
                     border: "1px solid rgba(255,255,255,.08)",
                     borderRadius: "18px",
                     padding: "22px",
-                    boxShadow: "0 15px 40px rgba(0,0,0,.25)",
+                    boxShadow:
+                      "0 15px 40px rgba(0,0,0,.25)",
                   }}
                 >
+                  {/* PRODUCT PHOTOS */}
+                  <ProductGallery product={product} />
+
                   <div
                     style={{
                       color: "#9ca3af",
@@ -268,7 +276,10 @@ export default function StorePage() {
                       marginBottom: "14px",
                     }}
                   >
-                    ₹{Number(product.price || 0).toLocaleString("en-IN")}
+                    ₹
+                    {Number(
+                      product.price || 0
+                    ).toLocaleString("en-IN")}
                   </div>
 
                   {outOfStock ? (
@@ -301,13 +312,21 @@ export default function StorePage() {
                       padding: "13px",
                       borderRadius: "10px",
                       border: "none",
-                      background: outOfStock ? "#374151" : "#2563eb",
-                      color: outOfStock ? "#9ca3af" : "#fff",
+                      background: outOfStock
+                        ? "#374151"
+                        : "#2563eb",
+                      color: outOfStock
+                        ? "#9ca3af"
+                        : "#fff",
                       fontWeight: "700",
-                      cursor: outOfStock ? "not-allowed" : "pointer",
+                      cursor: outOfStock
+                        ? "not-allowed"
+                        : "pointer",
                     }}
                   >
-                    {outOfStock ? "Out of Stock" : "Place Order"}
+                    {outOfStock
+                      ? "Out of Stock"
+                      : "Place Order"}
                   </button>
                 </div>
               );
@@ -338,7 +357,8 @@ export default function StorePage() {
               border: "1px solid rgba(255,255,255,.1)",
               borderRadius: "18px",
               padding: "25px",
-              boxShadow: "0 25px 80px rgba(0,0,0,.5)",
+              boxShadow:
+                "0 25px 80px rgba(0,0,0,.5)",
             }}
           >
             <h2
@@ -405,7 +425,9 @@ export default function StorePage() {
 
                 <input
                   value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
+                  onChange={(e) =>
+                    setCustomerName(e.target.value)
+                  }
                   placeholder="Enter your name"
                   style={inputStyle}
                 />
@@ -423,7 +445,9 @@ export default function StorePage() {
                 <input
                   type="tel"
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  onChange={(e) =>
+                    setCustomerPhone(e.target.value)
+                  }
                   placeholder="Enter your phone number"
                   required
                   style={inputStyle}
@@ -472,8 +496,9 @@ export default function StorePage() {
                   <strong>
                     ₹
                     {(
-                      Number(selectedProduct.price || 0) *
-                      Number(quantity || 1)
+                      Number(
+                        selectedProduct.price || 0
+                      ) * Number(quantity || 1)
                     ).toLocaleString("en-IN")}
                   </strong>
                 </div>
@@ -491,7 +516,8 @@ export default function StorePage() {
                       flex: 1,
                       padding: "13px",
                       borderRadius: "10px",
-                      border: "1px solid #374151",
+                      border:
+                        "1px solid #374151",
                       background: "#1f2937",
                       color: "#fff",
                       fontWeight: "700",
@@ -512,10 +538,14 @@ export default function StorePage() {
                       background: "#2563eb",
                       color: "#fff",
                       fontWeight: "700",
-                      cursor: placingOrder ? "wait" : "pointer",
+                      cursor: placingOrder
+                        ? "wait"
+                        : "pointer",
                     }}
                   >
-                    {placingOrder ? "Placing..." : "Place Order"}
+                    {placingOrder
+                      ? "Placing..."
+                      : "Place Order"}
                   </button>
                 </div>
               </>
@@ -524,6 +554,177 @@ export default function StorePage() {
         </div>
       )}
     </main>
+  );
+}
+
+/* =========================
+   PRODUCT IMAGE GALLERY
+========================= */
+
+function ProductGallery({ product }) {
+  const images =
+    Array.isArray(product.image_urls) &&
+    product.image_urls.length > 0
+      ? product.image_urls
+      : product.image_url
+      ? [product.image_url]
+      : [];
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  if (images.length === 0) {
+    return null;
+  }
+
+  const nextImage = () => {
+    setCurrentIndex(
+      (currentIndex + 1) % images.length
+    );
+  };
+
+  const previousImage = () => {
+    setCurrentIndex(
+      (currentIndex - 1 + images.length) %
+        images.length
+    );
+  };
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "190px",
+        borderRadius: "14px",
+        overflow: "hidden",
+        marginBottom: "18px",
+        background: "#0b1220",
+      }}
+    >
+      <img
+        src={images[currentIndex]}
+        alt={product.name || "Product"}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+        }}
+      />
+
+      {images.length > 1 && (
+        <>
+          {/* PREVIOUS */}
+          <button
+            onClick={previousImage}
+            aria-label="Previous photo"
+            style={{
+              position: "absolute",
+              left: "10px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "36px",
+              height: "36px",
+              borderRadius: "50%",
+              border:
+                "1px solid rgba(255,255,255,.2)",
+              background: "rgba(0,0,0,.6)",
+              color: "#fff",
+              fontSize: "20px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            ‹
+          </button>
+
+          {/* NEXT */}
+          <button
+            onClick={nextImage}
+            aria-label="Next photo"
+            style={{
+              position: "absolute",
+              right: "10px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "36px",
+              height: "36px",
+              borderRadius: "50%",
+              border:
+                "1px solid rgba(255,255,255,.2)",
+              background: "rgba(0,0,0,.6)",
+              color: "#fff",
+              fontSize: "20px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            ›
+          </button>
+
+          {/* COUNTER */}
+          <div
+            style={{
+              position: "absolute",
+              right: "10px",
+              bottom: "10px",
+              padding: "5px 9px",
+              borderRadius: "20px",
+              background: "rgba(0,0,0,.65)",
+              color: "#fff",
+              fontSize: "12px",
+              fontWeight: "600",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            {currentIndex + 1} / {images.length}
+          </div>
+
+          {/* DOTS */}
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: "10px",
+              transform: "translateX(-50%)",
+              display: "flex",
+              gap: "5px",
+            }}
+          >
+            {images.map((_, index) => (
+              <button
+                key={index}
+                onClick={() =>
+                  setCurrentIndex(index)
+                }
+                aria-label={`View photo ${index + 1}`}
+                style={{
+                  width:
+                    index === currentIndex
+                      ? "18px"
+                      : "6px",
+                  height: "6px",
+                  padding: 0,
+                  border: "none",
+                  borderRadius: "10px",
+                  background:
+                    index === currentIndex
+                      ? "#fff"
+                      : "rgba(255,255,255,.5)",
+                  cursor: "pointer",
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
