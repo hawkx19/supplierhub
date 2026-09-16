@@ -19,10 +19,11 @@ export default function Login() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (error) {
       setError(error.message);
@@ -30,6 +31,16 @@ export default function Login() {
       return;
     }
 
+    // Check if this account is the SupplierHub platform owner
+    const { data: isAdmin, error: adminError } =
+      await supabase.rpc('is_platform_admin');
+
+    if (!adminError && isAdmin) {
+      router.push('/platform-analytics');
+      return;
+    }
+
+    // Normal supplier account
     router.push('/dashboard');
   };
 
@@ -86,9 +97,10 @@ export default function Login() {
         </form>
 
         <small>
-          New here? <Link href="/signup">Create an account</Link>
+          New here?{' '}
+          <Link href="/signup">Create an account</Link>
         </small>
       </div>
     </main>
   );
-                }
+}
