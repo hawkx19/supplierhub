@@ -818,4 +818,58 @@ export default function Dashboard() {
               <label>
                 Category
 
-  
+                  <input
+                  value={editCategory}
+                  onChange={(e) =>
+                    setEditCategory(e.target.value)
+                  }
+                  placeholder="e.g. Electronics"
+                />
+              </label>
+
+              <label>
+                Price
+
+                <input
+                  type="number"
+                  min="0"
+                  value={editPrice}
+                  onChange={(e) =>
+                    setEditPrice(e.target.value)
+                  }
+                  placeholder="120"
+                />
+              </label>
+
+              <label>
+                Stock
+
+                <input
+                  type="number"
+                  min="0"
+                  value={editStock}
+                  onChange={(e) =>
+                    setEditStock(e.target.value)
+                  }
+                  placeholder="10"
+                />
+              </label>
+
+              <button
+                className="button primary"
+                onClick={saveEdit}
+                disabled={savingEdit}
+              >
+                {savingEdit
+                  ? 'Saving...'
+                  : 'Save changes →'}
+              </button>
+
+            </div>
+          </div>
+        )}
+
+      </section>
+    </main>
+  );
+}
