@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
 export default function Orders() {
@@ -8,6 +8,10 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState('');
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
 
   const loadOrders = async () => {
     setLoading(true);
@@ -58,9 +62,12 @@ export default function Orders() {
     setActionLoading(orderId);
     setError('');
 
-    const { error: rpcError } = await supabase.rpc('complete_order', {
-      p_order_id: orderId,
-    });
+    const { error: rpcError } = await supabase.rpc(
+      'complete_order',
+      {
+        p_order_id: orderId,
+      }
+    );
 
     if (rpcError) {
       setError(rpcError.message);
@@ -75,9 +82,12 @@ export default function Orders() {
     setActionLoading(orderId);
     setError('');
 
-    const { error: rpcError } = await supabase.rpc('reject_order', {
-      p_order_id: orderId,
-    });
+    const { error: rpcError } = await supabase.rpc(
+      'reject_order',
+      {
+        p_order_id: orderId,
+      }
+    );
 
     if (rpcError) {
       setError(rpcError.message);
@@ -100,6 +110,104 @@ export default function Orders() {
     (order) => order.status === 'cancelled'
   ).length;
 
+  const filteredOrders = useMemo(() => {
+    const searchText = search.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      /* =========================
+         SEARCH
+      ========================= */
+
+      const productName =
+        order.products?.name || '';
+
+      const customerName =
+        order.customer_name || '';
+
+      const customerPhone =
+        order.customer_phone || '';
+
+      const matchesSearch =
+        !searchText ||
+        customerName
+          .toLowerCase()
+          .includes(searchText) ||
+        customerPhone
+          .toLowerCase()
+          .includes(searchText) ||
+        productName
+          .toLowerCase()
+          .includes(searchText);
+
+      /* =========================
+         STATUS FILTER
+      ========================= */
+
+      const matchesStatus =
+        statusFilter === 'all' ||
+        order.status === statusFilter;
+
+      /* =========================
+         DATE FILTER
+      ========================= */
+
+      let matchesDate = true;
+
+      if (dateFilter !== 'all') {
+        const orderDate = new Date(order.created_at);
+        const now = new Date();
+
+        if (dateFilter === 'today') {
+          matchesDate =
+            orderDate.toDateString() ===
+            now.toDateString();
+        }
+
+        if (dateFilter === '7days') {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(
+            now.getDate() - 7
+          );
+
+          matchesDate =
+            orderDate >= sevenDaysAgo;
+        }
+
+        if (dateFilter === '30days') {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(
+            now.getDate() - 30
+          );
+
+          matchesDate =
+            orderDate >= thirtyDaysAgo;
+        }
+      }
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesDate
+      );
+    });
+  }, [
+    orders,
+    search,
+    statusFilter,
+    dateFilter,
+  ]);
+
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+    setDateFilter('all');
+  };
+
+  const hasFilters =
+    search ||
+    statusFilter !== 'all' ||
+    dateFilter !== 'all';
+
   return (
     <main
       style={{
@@ -110,17 +218,44 @@ export default function Orders() {
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+      <div
+        style={{
+          maxWidth: '1100px',
+          margin: '0 auto',
+        }}
+      >
 
-        <div style={{ marginBottom: '30px' }}>
-          <h1 style={{ marginBottom: '8px' }}>
+        {/* =========================
+            HEADER
+        ========================= */}
+
+        <div
+          style={{
+            marginBottom: '30px',
+          }}
+        >
+          <h1
+            style={{
+              marginBottom: '8px',
+              fontSize: '34px',
+            }}
+          >
             Orders
           </h1>
 
-          <p style={{ color: '#6b7280', margin: 0 }}>
+          <p
+            style={{
+              color: '#6b7280',
+              margin: 0,
+            }}
+          >
             View and manage orders from your store.
           </p>
         </div>
+
+        {/* =========================
+            STATS
+        ========================= */}
 
         <div
           style={{
@@ -128,7 +263,7 @@ export default function Orders() {
             gridTemplateColumns:
               'repeat(auto-fit, minmax(180px, 1fr))',
             gap: '16px',
-            marginBottom: '30px',
+            marginBottom: '25px',
           }}
         >
           <StatCard
@@ -152,6 +287,144 @@ export default function Orders() {
           />
         </div>
 
+        {/* =========================
+            FILTERS
+        ========================= */}
+
+        <div
+          style={{
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: '14px',
+            padding: '18px',
+            marginBottom: '20px',
+            boxShadow:
+              '0 4px 14px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'minmax(220px, 1fr) 180px 180px auto',
+              gap: '12px',
+              alignItems: 'center',
+            }}
+          >
+
+            {/* SEARCH */}
+
+            <input
+              type="text"
+              value={search}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
+              placeholder="Search customer, phone or product..."
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '12px 14px',
+                borderRadius: '9px',
+                border:
+                  '1px solid #d1d5db',
+                outline: 'none',
+                fontSize: '14px',
+                color: '#111827',
+                background: '#fff',
+              }}
+            />
+
+            {/* STATUS */}
+
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(e.target.value)
+              }
+              style={selectStyle}
+            >
+              <option value="all">
+                All Status
+              </option>
+
+              <option value="pending">
+                Pending
+              </option>
+
+              <option value="completed">
+                Completed
+              </option>
+
+              <option value="cancelled">
+                Rejected
+              </option>
+            </select>
+
+            {/* DATE */}
+
+            <select
+              value={dateFilter}
+              onChange={(e) =>
+                setDateFilter(e.target.value)
+              }
+              style={selectStyle}
+            >
+              <option value="all">
+                All Dates
+              </option>
+
+              <option value="today">
+                Today
+              </option>
+
+              <option value="7days">
+                Last 7 Days
+              </option>
+
+              <option value="30days">
+                Last 30 Days
+              </option>
+            </select>
+
+            {/* CLEAR */}
+
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '9px',
+                  border:
+                    '1px solid #d1d5db',
+                  background: '#fff',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div
+            style={{
+              marginTop: '12px',
+              color: '#6b7280',
+              fontSize: '13px',
+            }}
+          >
+            Showing {filteredOrders.length} of{' '}
+            {orders.length} orders
+          </div>
+        </div>
+
+        {/* =========================
+            ERROR
+        ========================= */}
+
         {error && (
           <div
             style={{
@@ -160,11 +433,17 @@ export default function Orders() {
               borderRadius: '10px',
               background: '#fee2e2',
               color: '#991b1b',
+              border:
+                '1px solid #fecaca',
             }}
           >
             {error}
           </div>
         )}
+
+        {/* =========================
+            LOADING
+        ========================= */}
 
         {loading ? (
           <div
@@ -173,270 +452,342 @@ export default function Orders() {
               background: '#fff',
               borderRadius: '14px',
               textAlign: 'center',
+              border:
+                '1px solid #e5e7eb',
             }}
           >
             Loading orders...
           </div>
         ) : orders.length === 0 ? (
+
+          /* =========================
+             NO ORDERS
+          ========================= */
+
           <div
             style={{
               padding: '50px 30px',
               background: '#fff',
-              border: '1px solid #e5e7eb',
+              border:
+                '1px solid #e5e7eb',
               borderRadius: '14px',
               textAlign: 'center',
             }}
           >
-            <h2 style={{ marginTop: 0 }}>
+            <div
+              style={{
+                fontSize: '42px',
+                marginBottom: '12px',
+              }}
+            >
+              📦
+            </div>
+
+            <h2
+              style={{
+                marginTop: 0,
+              }}
+            >
               No orders yet
             </h2>
 
-            <p style={{ color: '#6b7280' }}>
-              Orders placed through your public store
-              will appear here.
+            <p
+              style={{
+                color: '#6b7280',
+              }}
+            >
+              Orders placed through your public
+              store will appear here.
             </p>
           </div>
+
+        ) : filteredOrders.length === 0 ? (
+
+          /* =========================
+             NO FILTER RESULTS
+          ========================= */
+
+          <div
+            style={{
+              padding: '50px 30px',
+              background: '#fff',
+              border:
+                '1px solid #e5e7eb',
+              borderRadius: '14px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '42px',
+                marginBottom: '12px',
+              }}
+            >
+              🔎
+            </div>
+
+            <h2
+              style={{
+                marginTop: 0,
+              }}
+            >
+              No matching orders
+            </h2>
+
+            <p
+              style={{
+                color: '#6b7280',
+              }}
+            >
+              Try changing your search or filters.
+            </p>
+
+            <button
+              onClick={clearFilters}
+              style={{
+                marginTop: '8px',
+                padding: '11px 18px',
+                border: 'none',
+                borderRadius: '9px',
+                background: '#2563eb',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: '700',
+              }}
+            >
+              Clear Filters
+            </button>
+          </div>
+
         ) : (
-          <div style={{ display: 'grid', gap: '16px' }}>
-            {orders.map((order) => (
-              <div
-                key={order.id}
-                style={{
-                  background: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '14px',
-                  padding: '22px',
-                  boxShadow:
-                    '0 4px 14px rgba(0,0,0,0.04)',
-                }}
-              >
 
+          /* =========================
+             ORDER LIST
+          ========================= */
+
+          <div
+            style={{
+              display: 'grid',
+              gap: '16px',
+            }}
+          >
+            {filteredOrders.map((order) => {
+
+              const isProcessing =
+                actionLoading === order.id;
+
+              return (
                 <div
+                  key={order.id}
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: '15px',
-                    flexWrap: 'wrap',
-                    marginBottom: '18px',
-                  }}
-                >
-                  <div>
-                    <h2
-                      style={{
-                        margin: '0 0 6px',
-                        fontSize: '20px',
-                      }}
-                    >
-                      {order.products?.name || 'Product'}
-                    </h2>
-
-                    <div
-                      style={{
-                        color: '#6b7280',
-                        fontSize: '14px',
-                      }}
-                    >
-                      Ordered by {order.customer_name}
-                    </div>
-                  </div>
-
-                  <StatusBadge
-                    status={order.status}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns:
-                      'repeat(auto-fit, minmax(150px, 1fr))',
-                    gap: '14px',
-                    marginBottom: '20px',
+                    background: '#fff',
+                    border:
+                      '1px solid #e5e7eb',
+                    borderRadius: '14px',
+                    padding: '22px',
+                    boxShadow:
+                      '0 4px 14px rgba(0,0,0,0.04)',
                   }}
                 >
 
-                  <Info
-                    label="Quantity"
-                    value={order.quantity}
-                  />
+                  {/* ORDER HEADER */}
 
-                  <Info
-                    label="Total"
-                    value={`₹${Number(
-                      order.total_amount
-                    ).toFixed(2)}`}
-                  />
-
-                  <Info
-                    label="Customer Phone"
-                    value={
-                      order.customer_phone ||
-                      'Not provided'
-                    }
-                  />
-
-                  <Info
-                    label="Date"
-                    value={new Date(
-                      order.created_at
-                    ).toLocaleString()}
-                  />
-
-                </div>
-
-                {order.status === 'pending' && (
                   <div
                     style={{
                       display: 'flex',
-                      gap: '10px',
+                      justifyContent:
+                        'space-between',
+                      gap: '15px',
                       flexWrap: 'wrap',
+                      marginBottom: '18px',
                     }}
                   >
+                    <div>
+                      <h2
+                        style={{
+                          margin:
+                            '0 0 6px',
+                          fontSize: '20px',
+                        }}
+                      >
+                        {order.products?.name ||
+                          'Product'}
+                      </h2>
 
-                    <button
-                      onClick={() =>
-                        completeOrder(order.id)
-                      }
-                      disabled={
-                        actionLoading === order.id
-                      }
-                      style={{
-                        padding: '11px 18px',
-                        border: 'none',
-                        borderRadius: '9px',
-                        background: '#16a34a',
-                        color: '#fff',
-                        cursor:
-                          actionLoading === order.id
-                            ? 'wait'
-                            : 'pointer',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {actionLoading === order.id
-                        ? 'Processing...'
-                        : 'Order Done'}
-                    </button>
+                      <div
+                        style={{
+                          color: '#6b7280',
+                          fontSize: '14px',
+                        }}
+                      >
+                        Ordered by{' '}
+                        <strong
+                          style={{
+                            color: '#374151',
+                          }}
+                        >
+                          {order.customer_name}
+                        </strong>
+                      </div>
+                    </div>
 
-                    <button
-                      onClick={() =>
-                        rejectOrder(order.id)
-                      }
-                      disabled={
-                        actionLoading === order.id
-                      }
-                      style={{
-                        padding: '11px 18px',
-                        border: 'none',
-                        borderRadius: '9px',
-                        background: '#dc2626',
-                        color: '#fff',
-                        cursor:
-                          actionLoading === order.id
-                            ? 'wait'
-                            : 'pointer',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {actionLoading === order.id
-                        ? 'Processing...'
-                        : 'Order Rejected'}
-                    </button>
-
+                    <StatusBadge
+                      status={order.status}
+                    />
                   </div>
-                )}
 
-              </div>
-            ))}
-          </div>
-        )}
+                  {/* ORDER INFO */}
 
-      </div>
-    </main>
-  );
-}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        'repeat(auto-fit, minmax(150px, 1fr))',
+                      gap: '14px',
+                      marginBottom: '20px',
+                      padding:
+                        '16px',
+                      background:
+                        '#f9fafb',
+                      borderRadius:
+                        '10px',
+                    }}
+                  >
+                    <Info
+                      label="Quantity"
+                      value={order.quantity}
+                    />
 
-function StatCard({ title, value }) {
-  return (
-    <div
-      style={{
-        background: '#fff',
-        border: '1px solid #e5e7eb',
-        borderRadius: '14px',
-        padding: '20px',
-      }}
-    >
-      <div
-        style={{
-          color: '#6b7280',
-          fontSize: '14px',
-          marginBottom: '8px',
-        }}
-      >
-        {title}
-      </div>
+                    <Info
+                      label="Total"
+                      value={`₹${Number(
+                        order.total_amount
+                      ).toFixed(2)}`}
+                    />
 
-      <strong style={{ fontSize: '28px' }}>
-        {value}
-      </strong>
-    </div>
-  );
-}
+                    <Info
+                      label="Customer Phone"
+                      value={
+                        order.customer_phone ||
+                        'Not provided'
+                      }
+                    />
 
-function Info({ label, value }) {
-  return (
-    <div>
-      <div
-        style={{
-          color: '#6b7280',
-          fontSize: '13px',
-          marginBottom: '4px',
-        }}
-      >
-        {label}
-      </div>
+                    <Info
+                      label="Order Date"
+                      value={new Date(
+                        order.created_at
+                      ).toLocaleDateString(
+                        undefined,
+                        {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        }
+                      )}
+                    />
 
-      <div
-        style={{
-          fontWeight: 600,
-          wordBreak: 'break-word',
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
+                    <Info
+                      label="Order Time"
+                      value={new Date(
+                        order.created_at
+                      ).toLocaleTimeString(
+                        undefined,
+                        {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }
+                      )}
+                    />
+                  </div>
 
-function StatusBadge({ status }) {
-  const isPending = status === 'pending';
-  const isCompleted = status === 'completed';
+                  {/* ACTIONS */}
 
-  return (
-    <span
-      style={{
-        alignSelf: 'flex-start',
-        padding: '6px 11px',
-        borderRadius: '999px',
-        fontSize: '13px',
-        fontWeight: 700,
-        background: isPending
-          ? '#fef3c7'
-          : isCompleted
-          ? '#dcfce7'
-          : '#fee2e2',
-        color: isPending
-          ? '#92400e'
-          : isCompleted
-          ? '#166534'
-          : '#991b1b',
-      }}
-    >
-      {isPending
-        ? 'Pending'
-        : isCompleted
-        ? 'Completed'
-        : 'Rejected'}
-    </span>
-  );
-                }
+                  {order.status === 'pending' && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '10px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <button
+                        onClick={() =>
+                          completeOrder(
+                            order.id
+                          )
+                        }
+                        disabled={
+                          isProcessing
+                        }
+                        style={{
+                          padding:
+                            '11px 18px',
+                          border: 'none',
+                          borderRadius:
+                            '9px',
+                          background:
+                            isProcessing
+                              ? '#86efac'
+                              : '#16a34a',
+                          color: '#fff',
+                          cursor:
+                            isProcessing
+                              ? 'wait'
+                              : 'pointer',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {isProcessing
+                          ? 'Processing...'
+                          : '✓ Order Done'}
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          rejectOrder(
+                            order.id
+                          )
+                        }
+                        disabled={
+                          isProcessing
+                        }
+                        style={{
+                          padding:
+                            '11px 18px',
+                          border: 'none',
+                          borderRadius:
+                            '9px',
+                          background:
+                            isProcessing
+                              ? '#fca5a5'
+                              : '#dc2626',
+                          color: '#fff',
+                          cursor:
+                            isProcessing
+                              ? 'wait'
+                              : 'pointer',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {isProcessing
+                          ? 'Processing...'
+                          : '✕ Order Rejected'}
+                      </button>
+                    </div>
+                  )}
+
+                  {order.status === 'completed' && (
+                    <div
+                      style={{
+                        padding:
+                          '11px 14px',
+                        borderRadius:
+                          '9px',
+                        background:
+                          '#f0fdf4',
+                        color:
+                          '#166534',
+                        fontSize:
+                          '14px',
+                
