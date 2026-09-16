@@ -22,21 +22,66 @@ export default function Signup() {
     setError('');
     setMessage('');
 
+    const visitorId =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('supplierhub_visitor_id')
+        : null;
+
+    // Track signup attempt
+    try {
+      await supabase.from('analytics_events').insert({
+        event_type: 'signup_started',
+        visitor_id: visitorId,
+        user_id: null,
+        path: '/signup',
+        metadata: {
+          business_name_provided: Boolean(
+            businessName.trim()
+          ),
+        },
+      });
+    } catch (trackingError) {
+      console.error(
+        'Signup tracking error:',
+        trackingError
+      );
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-  data: {
-    business_name: businessName,
-  },
-  emailRedirectTo: `${window.location.origin}/auth/callback`,
-},
+        data: {
+          business_name: businessName,
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
 
     if (error) {
       setError(error.message);
       setLoading(false);
       return;
+    }
+
+    // Track successful account creation
+    try {
+      await supabase.from('analytics_events').insert({
+        event_type: 'signup_completed',
+        visitor_id: visitorId,
+        user_id: data.user?.id || null,
+        path: '/signup',
+        metadata: {
+          email_confirmed_immediately: Boolean(
+            data.session
+          ),
+        },
+      });
+    } catch (trackingError) {
+      console.error(
+        'Signup completion tracking error:',
+        trackingError
+      );
     }
 
     if (data.session) {
@@ -72,7 +117,9 @@ export default function Signup() {
             Business name
             <input
               value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
+              onChange={(e) =>
+                setBusinessName(e.target.value)
+              }
               placeholder="Sharma Electricals"
               required
             />
@@ -83,7 +130,9 @@ export default function Signup() {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
               placeholder="you@business.com"
               required
             />
@@ -94,7 +143,9 @@ export default function Signup() {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
               placeholder="Create a password"
               minLength={6}
               required
@@ -118,7 +169,9 @@ export default function Signup() {
             type="submit"
             disabled={loading}
           >
-            {loading ? 'Creating store...' : 'Create store →'}
+            {loading
+              ? 'Creating store...'
+              : 'Create store →'}
           </button>
         </form>
 
