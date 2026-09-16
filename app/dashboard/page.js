@@ -11,6 +11,9 @@ export default function Dashboard() {
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('1');
 
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -80,6 +83,102 @@ export default function Dashboard() {
     loadStore();
   }, []);
 
+  // SELECT PRODUCT PHOTOS
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files || []);
+
+    if (files.length > 5) {
+      setError('You can select maximum 5 photos.');
+      return;
+    }
+
+    const validFiles = files.filter((file) =>
+      file.type.startsWith('image/')
+    );
+
+    if (validFiles.length !== files.length) {
+      setError('Only image files are allowed.');
+      return;
+    }
+
+    setError('');
+    setImageFiles(validFiles);
+
+    const previews = validFiles.map((file) =>
+      URL.createObjectURL(file)
+    );
+
+    setImagePreviews(previews);
+  };
+
+  // CLEAR PRODUCT PHOTO STATE
+  const clearImageSelection = () => {
+    imagePreviews.forEach((url) => {
+      URL.revokeObjectURL(url);
+    });
+
+    setImageFiles([]);
+    setImagePreviews([]);
+  };
+
+  // CLOSE ADD PRODUCT MODAL
+  const closeAddModal = () => {
+    if (saving) return;
+
+    setOpen(false);
+    setName('');
+    setPrice('');
+    setStock('1');
+    clearImageSelection();
+    setError('');
+  };
+
+  // UPLOAD PRODUCT PHOTOS
+  const uploadProductImages = async (user) => {
+    if (!imageFiles.length) {
+      return [];
+    }
+
+    const uploadedUrls = [];
+
+    for (const file of imageFiles) {
+      const extension =
+        file.name.split('.').pop()?.toLowerCase() || 'jpg';
+
+      const safeName = file.name
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[^a-zA-Z0-9-_]/g, '-')
+        .slice(0, 60);
+
+      const filePath = `${user.id}/${crypto.randomUUID()}-${safeName}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(
+          `Image upload failed: ${uploadError.message}`
+        );
+      }
+
+      const { data } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      if (!data?.publicUrl) {
+        throw new Error('Could not generate product image URL.');
+      }
+
+      uploadedUrls.push(data.publicUrl);
+    }
+
+    return uploadedUrls;
+  };
+
   // ADD PRODUCT
   const add = async () => {
     if (!name.trim()) {
@@ -100,30 +199,41 @@ export default function Dashboard() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('products')
-      .insert({
-        user_id: user.id,
-        name: name.trim(),
-        category: 'New',
-        price: Number(price) || 0,
-        stock: Number(stock) || 0,
-      })
-      .select()
-      .single();
+    try {
+      // Upload images first
+      const imageUrls = await uploadProductImages(user);
 
-    if (error) {
-      setError(error.message);
-      setSaving(false);
-      return;
+      const { data, error } = await supabase
+        .from('products')
+        .insert({
+          user_id: user.id,
+          name: name.trim(),
+          category: 'New',
+          price: Number(price) || 0,
+          stock: Number(stock) || 0,
+          image_urls: imageUrls,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setProducts((p) => [data, ...p]);
+
+      setName('');
+      setPrice('');
+      setStock('1');
+
+      clearImageSelection();
+      setOpen(false);
+    } catch (err) {
+      setError(
+        err?.message || 'Something went wrong while adding product.'
+      );
     }
 
-    setProducts((p) => [data, ...p]);
-
-    setName('');
-    setPrice('');
-    setStock('1');
-    setOpen(false);
     setSaving(false);
   };
 
@@ -279,7 +389,10 @@ export default function Dashboard() {
 
           <button
             className="button primary"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              setError('');
+              setOpen(true);
+            }}
           >
             + Add product
           </button>
@@ -443,11 +556,45 @@ export default function Dashboard() {
 
                 {/* PRODUCT */}
                 <div>
-                  <div className="product-thumb">
-                    {p.name?.slice(0, 1)}
+                  <div
+                    className="product-thumb"
+                    style={{
+                      overflow: 'hidden',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      verticalAlign: 'middle',
+                      marginRight: '10px',
+                    }}
+                  >
+                    {p.image_urls?.[0] ? (
+                      <img
+                        src={p.image_urls[0]}
+                        alt={p.name || 'Product'}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    ) : (
+                      p.name?.slice(0, 1)
+                    )}
                   </div>
 
                   <b>{p.name}</b>
+
+                  {Array.isArray(p.image_urls) &&
+                    p.image_urls.length > 1 && (
+                      <small
+                        className="muted"
+                        style={{
+                          marginLeft: '8px',
+                        }}
+                      >
+                        +{p.image_urls.length - 1} photos
+                      </small>
+                    )}
                 </div>
 
                 {/* CATEGORY */}
@@ -509,7 +656,7 @@ export default function Dashboard() {
 
               <button
                 className="modal-close"
-                onClick={() => setOpen(false)}
+                onClick={closeAddModal}
               >
                 ×
               </button>
@@ -562,13 +709,72 @@ export default function Dashboard() {
                 />
               </label>
 
+              {/* PRODUCT PHOTOS */}
+              <label>
+                Product Photos
+                <span
+                  className="muted"
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    marginTop: '3px',
+                    marginBottom: '8px',
+                  }}
+                >
+                  Optional · Maximum 5 photos
+                </span>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageChange}
+                />
+              </label>
+
+              {/* PHOTO PREVIEWS */}
+              {imagePreviews.length > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '10px',
+                    flexWrap: 'wrap',
+                    marginBottom: '18px',
+                  }}
+                >
+                  {imagePreviews.map((src, index) => (
+                    <div
+                      key={src}
+                      style={{
+                        width: '72px',
+                        height: '72px',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        position: 'relative',
+                      }}
+                    >
+                      <img
+                        src={src}
+                        alt={`Preview ${index + 1}`}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <button
                 className="button primary"
                 onClick={add}
                 disabled={saving}
               >
                 {saving
-                  ? 'Saving...'
+                  ? 'Uploading & saving...'
                   : 'Add product →'}
               </button>
 
@@ -612,58 +818,4 @@ export default function Dashboard() {
               <label>
                 Category
 
-                <input
-                  value={editCategory}
-                  onChange={(e) =>
-                    setEditCategory(e.target.value)
-                  }
-                  placeholder="e.g. Electronics"
-                />
-              </label>
-
-              <label>
-                Price
-
-                <input
-                  type="number"
-                  min="0"
-                  value={editPrice}
-                  onChange={(e) =>
-                    setEditPrice(e.target.value)
-                  }
-                  placeholder="120"
-                />
-              </label>
-
-              <label>
-                Stock
-
-                <input
-                  type="number"
-                  min="0"
-                  value={editStock}
-                  onChange={(e) =>
-                    setEditStock(e.target.value)
-                  }
-                  placeholder="10"
-                />
-              </label>
-
-              <button
-                className="button primary"
-                onClick={saveEdit}
-                disabled={savingEdit}
-              >
-                {savingEdit
-                  ? 'Saving...'
-                  : 'Save changes →'}
-              </button>
-
-            </div>
-          </div>
-        )}
-
-      </section>
-    </main>
-  );
-            }
+  
