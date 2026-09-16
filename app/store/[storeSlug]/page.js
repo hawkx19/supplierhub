@@ -25,7 +25,40 @@ export default function StorePage() {
 
     loadStore();
     loadProducts();
+    trackStoreView();
   }, [storeSlug]);
+
+  async function trackStoreView() {
+    try {
+      let visitorId = localStorage.getItem(
+        "supplierhub_visitor_id"
+      );
+
+      if (!visitorId) {
+        visitorId = crypto.randomUUID();
+
+        localStorage.setItem(
+          "supplierhub_visitor_id",
+          visitorId
+        );
+      }
+
+      await supabase.from("analytics_events").insert({
+        event_type: "store_view",
+        visitor_id: visitorId,
+        user_id: null,
+        path: `/store/${storeSlug}`,
+        metadata: {
+          store_slug: storeSlug,
+        },
+      });
+    } catch (trackingError) {
+      console.error(
+        "Store view tracking error:",
+        trackingError
+      );
+    }
+  }
 
   async function loadStore() {
     const { data, error } = await supabase
@@ -108,7 +141,9 @@ export default function StorePage() {
     }
 
     if (quantity > Number(selectedProduct.stock)) {
-      alert("Requested quantity is greater than available stock.");
+      alert(
+        "Requested quantity is greater than available stock."
+      );
       return;
     }
 
@@ -213,11 +248,18 @@ export default function StorePage() {
               color: "#9ca3af",
             }}
           >
-            <h2 style={{ color: "#fff", marginBottom: "8px" }}>
+            <h2
+              style={{
+                color: "#fff",
+                marginBottom: "8px",
+              }}
+            >
               No products available
             </h2>
 
-            <p>This store hasn't added any products yet.</p>
+            <p>
+              This store hasn't added any products yet.
+            </p>
           </div>
         ) : (
           /* PRODUCTS */
@@ -239,7 +281,8 @@ export default function StorePage() {
                   style={{
                     background:
                       "linear-gradient(145deg, rgba(31,41,55,.95), rgba(17,24,39,.95))",
-                    border: "1px solid rgba(255,255,255,.08)",
+                    border:
+                      "1px solid rgba(255,255,255,.08)",
                     borderRadius: "18px",
                     padding: "22px",
                     boxShadow:
@@ -305,7 +348,9 @@ export default function StorePage() {
                   )}
 
                   <button
-                    onClick={() => openOrderForm(product)}
+                    onClick={() =>
+                      openOrderForm(product)
+                    }
                     disabled={outOfStock}
                     style={{
                       width: "100%",
@@ -354,7 +399,8 @@ export default function StorePage() {
               width: "100%",
               maxWidth: "480px",
               background: "#111827",
-              border: "1px solid rgba(255,255,255,.1)",
+              border:
+                "1px solid rgba(255,255,255,.1)",
               borderRadius: "18px",
               padding: "25px",
               boxShadow:
@@ -466,14 +512,18 @@ export default function StorePage() {
                 <input
                   type="number"
                   min="1"
-                  max={Number(selectedProduct.stock)}
+                  max={Number(
+                    selectedProduct.stock
+                  )}
                   value={quantity}
                   onChange={(e) =>
                     setQuantity(
                       Math.max(
                         1,
                         Math.min(
-                          Number(selectedProduct.stock),
+                          Number(
+                            selectedProduct.stock
+                          ),
                           Number(e.target.value) || 1
                         )
                       )
@@ -485,7 +535,8 @@ export default function StorePage() {
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
+                    justifyContent:
+                      "space-between",
                     marginTop: "18px",
                     marginBottom: "20px",
                     fontSize: "18px",
@@ -498,7 +549,8 @@ export default function StorePage() {
                     {(
                       Number(
                         selectedProduct.price || 0
-                      ) * Number(quantity || 1)
+                      ) *
+                      Number(quantity || 1)
                     ).toLocaleString("en-IN")}
                   </strong>
                 </div>
@@ -570,7 +622,8 @@ function ProductGallery({ product }) {
       ? [product.image_url]
       : [];
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] =
+    useState(0);
 
   if (images.length === 0) {
     return null;
@@ -622,7 +675,8 @@ function ProductGallery({ product }) {
               position: "absolute",
               left: "10px",
               top: "50%",
-              transform: "translateY(-50%)",
+              transform:
+                "translateY(-50%)",
               width: "36px",
               height: "36px",
               borderRadius: "50%",
@@ -649,7 +703,8 @@ function ProductGallery({ product }) {
               position: "absolute",
               right: "10px",
               top: "50%",
-              transform: "translateY(-50%)",
+              transform:
+                "translateY(-50%)",
               width: "36px",
               height: "36px",
               borderRadius: "50%",
@@ -683,7 +738,8 @@ function ProductGallery({ product }) {
               backdropFilter: "blur(8px)",
             }}
           >
-            {currentIndex + 1} / {images.length}
+            {currentIndex + 1} /{" "}
+            {images.length}
           </div>
 
           {/* DOTS */}
@@ -692,7 +748,8 @@ function ProductGallery({ product }) {
               position: "absolute",
               left: "50%",
               bottom: "10px",
-              transform: "translateX(-50%)",
+              transform:
+                "translateX(-50%)",
               display: "flex",
               gap: "5px",
             }}
@@ -703,40 +760,7 @@ function ProductGallery({ product }) {
                 onClick={() =>
                   setCurrentIndex(index)
                 }
-                aria-label={`View photo ${index + 1}`}
-                style={{
-                  width:
-                    index === currentIndex
-                      ? "18px"
-                      : "6px",
-                  height: "6px",
-                  padding: 0,
-                  border: "none",
-                  borderRadius: "10px",
-                  background:
-                    index === currentIndex
-                      ? "#fff"
-                      : "rgba(255,255,255,.5)",
-                  cursor: "pointer",
-                }}
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-const inputStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "12px 14px",
-  marginBottom: "16px",
-  borderRadius: "10px",
-  border: "1px solid #374151",
-  background: "#0b1220",
-  color: "#fff",
-  outline: "none",
-  fontSize: "15px",
-};
+                aria-label={`View photo ${
+                  index + 1
+                }`}
+            
