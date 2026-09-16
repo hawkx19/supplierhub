@@ -738,8 +738,7 @@ function ProductGallery({ product }) {
               backdropFilter: "blur(8px)",
             }}
           >
-            {currentIndex + 1} /{" "}
-            {images.length}
+            {currentIndex + 1} / {images.length}
           </div>
 
           {/* DOTS */}
@@ -763,4 +762,39 @@ function ProductGallery({ product }) {
                 aria-label={`View photo ${
                   index + 1
                 }`}
-            
+                style={{
+                      width:
+                    index === currentIndex
+                      ? "18px"
+                      : "6px",
+                  height: "6px",
+                  padding: 0,
+                  border: "none",
+                  borderRadius: "10px",
+                  background:
+                    index === currentIndex
+                      ? "#fff"
+                      : "rgba(255,255,255,.5)",
+                  cursor: "pointer",
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const inputStyle = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "12px 14px",
+  marginBottom: "16px",
+  borderRadius: "10px",
+  border: "1px solid #374151",
+  background: "#0b1220",
+  color: "#fff",
+  outline: "none",
+  fontSize: "15px",
+};
