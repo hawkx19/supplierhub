@@ -1,25 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 export default function PlatformAnalytics() {
-  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState("");
 
+  const [events, setEvents] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [usersCount, setUsersCount] = useState(0);
+  const [storesCount, setStoresCount] = useState(0);
+
+  const [period, setPeriod] = useState("30");
+
   useEffect(() => {
-    loadAnalytics();
+    checkAccessAndLoad();
   }, []);
 
-  async function loadAnalytics(isRefresh = false) {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
+  async function checkAccessAndLoad() {
+    setLoading(true);
     setError("");
 
     try {
@@ -32,84 +35,339 @@ export default function PlatformAnalytics() {
         return;
       }
 
-      const { data, error: analyticsError } =
-        await supabase.rpc("get_platform_analytics");
+      const { data: isAdmin, error: adminError } =
+        await supabase.rpc("is_platform_admin");
 
-      if (analyticsError) {
-        throw analyticsError;
+      if (adminError) {
+        throw adminError;
       }
 
-      setAnalytics(data);
+      if (!isAdmin) {
+        setAuthorized(false);
+        setError(
+          "You do not have permission to view platform analytics."
+        );
+        setLoading(false);
+        return;
+      }
+
+      setAuthorized(true);
+      await loadAnalytics();
     } catch (err) {
-      console.error("Platform analytics error:", err);
+      console.error(err);
 
-      if (
-        err?.message
-          ?.toLowerCase()
-          .includes("access denied")
-      ) {
-        setError(
-          "Access denied. This dashboard is only available to the SupplierHub owner."
-        );
-      } else {
-        setError(
-          err?.message ||
-            "Unable to load platform analytics."
-        );
-      }
+      setError(
+        err?.message ||
+          "Something went wrong while loading platform analytics."
+      );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAnalytics() {
+    setError("");
+
+    const days = Number(period) || 30;
+
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceIso = since.toISOString();
+
+    const [
+      eventsResult,
+      productsResult,
+      ordersResult,
+      storesResult,
+    ] = await Promise.all([
+      supabase
+        .from("analytics_events")
+        .select(
+          "id, event_type, visitor_id, user_id, path, metadata, created_at"
+        )
+        .gte("created_at", sinceIso)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("products")
+        .select(
+          "id, user_id, name, price, stock, store_slug, created_at"
+        ),
+
+      supabase
+        .from("orders")
+        .select(
+          "id, store_owner_id, product_id, customer_name, quantity, total_amount, status, created_at"
+        )
+        .gte("created_at", sinceIso)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("store_profiles")
+        .select("user_id, store_slug, store_name, created_at"),
+    ]);
+
+    if (eventsResult.error) {
+      throw eventsResult.error;
+    }
+
+    if (productsResult.error) {
+      throw productsResult.error;
+    }
+
+    if (ordersResult.error) {
+      throw ordersResult.error;
+    }
+
+    if (storesResult.error) {
+      throw storesResult.error;
+    }
+
+    setEvents(eventsResult.data || []);
+    setProducts(productsResult.data || []);
+    setOrders(ordersResult.data || []);
+
+    const uniqueUsers = new Set(
+      (eventsResult.data || [])
+        .map((event) => event.user_id)
+        .filter(Boolean)
+    );
+
+    setUsersCount(uniqueUsers.size);
+
+    setStoresCount((storesResult.data || []).length);
+  }
+
+  async function refreshAnalytics() {
+    setRefreshing(true);
+
+    try {
+      await loadAnalytics();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err?.message ||
+          "Unable to refresh platform analytics."
+      );
+    } finally {
       setRefreshing(false);
     }
   }
+
+  const pageViews = useMemo(() => {
+    return events.filter(
+      (event) => event.event_type === "page_view"
+    ).length;
+  }, [events]);
+
+  const uniqueVisitors = useMemo(() => {
+    return new Set(
+      events
+        .map((event) => event.visitor_id)
+        .filter(Boolean)
+    ).size;
+  }, [events]);
+
+  const storeViews = useMemo(() => {
+    return events.filter(
+      (event) => event.event_type === "store_view"
+    ).length;
+  }, [events]);
+
+  const signupStarted = useMemo(() => {
+    return events.filter(
+      (event) => event.event_type === "signup_started"
+    ).length;
+  }, [events]);
+
+  const signupCompleted = useMemo(() => {
+    return events.filter(
+      (event) => event.event_type === "signup_completed"
+    ).length;
+  }, [events]);
+
+  const completedOrders = useMemo(() => {
+    return orders.filter(
+      (order) => order.status === "completed"
+    );
+  }, [orders]);
+
+  const pendingOrders = useMemo(() => {
+    return orders.filter(
+      (order) => order.status === "pending"
+    );
+  }, [orders]);
+
+  const rejectedOrders = useMemo(() => {
+    return orders.filter(
+      (order) => order.status === "cancelled"
+    );
+  }, [orders]);
+
+  const totalSales = useMemo(() => {
+    return completedOrders.reduce(
+      (sum, order) =>
+        sum + Number(order.total_amount || 0),
+      0
+    );
+  }, [completedOrders]);
+
+  const unitsSold = useMemo(() => {
+    return completedOrders.reduce(
+      (sum, order) =>
+        sum + Number(order.quantity || 0),
+      0
+    );
+  }, [completedOrders]);
+
+  const storeViewVisitors = useMemo(() => {
+    return new Set(
+      events
+        .filter(
+          (event) => event.event_type === "store_view"
+        )
+        .map((event) => event.visitor_id)
+        .filter(Boolean)
+    ).size;
+  }, [events]);
+
+  const signupConversion = useMemo(() => {
+    if (signupStarted === 0) return 0;
+
+    return Math.round(
+      (signupCompleted / signupStarted) * 100
+    );
+  }, [signupStarted, signupCompleted]);
+    const topStores = useMemo(() => {
+    const counts = {};
+
+    events
+      .filter(
+        (event) => event.event_type === "store_view"
+      )
+      .forEach((event) => {
+        const slug =
+          event.metadata?.store_slug ||
+          event.path?.split("/store/")[1] ||
+          "unknown";
+
+        if (!counts[slug]) {
+          counts[slug] = {
+            slug,
+            views: 0,
+            visitors: new Set(),
+          };
+        }
+
+        counts[slug].views += 1;
+
+        if (event.visitor_id) {
+          counts[slug].visitors.add(
+            event.visitor_id
+          );
+        }
+      });
+
+    return Object.values(counts)
+      .map((store) => ({
+        slug: store.slug,
+        views: store.views,
+        visitors: store.visitors.size,
+      }))
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 8);
+  }, [events]);
+
+  const dailyGrowth = useMemo(() => {
+    const days = Number(period) || 30;
+    const result = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - i);
+
+      const nextDate = new Date(date);
+      nextDate.setDate(nextDate.getDate() + 1);
+
+      const dayEvents = events.filter((event) => {
+        const created = new Date(event.created_at);
+
+        return (
+          created >= date &&
+          created < nextDate
+        );
+      });
+
+      const visitors = new Set(
+        dayEvents
+          .map((event) => event.visitor_id)
+          .filter(Boolean)
+      ).size;
+
+      const views = dayEvents.filter(
+        (event) => event.event_type === "page_view"
+      ).length;
+
+      const storeViewsForDay = dayEvents.filter(
+        (event) => event.event_type === "store_view"
+      ).length;
+
+      const signups = dayEvents.filter(
+        (event) =>
+          event.event_type === "signup_completed"
+      ).length;
+
+      result.push({
+        label: date.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+        }),
+        visitors,
+        views,
+        storeViews: storeViewsForDay,
+        signups,
+      });
+    }
+
+    return result;
+  }, [events, period]);
+
+  const maxGrowthValue = useMemo(() => {
+    const values = dailyGrowth.flatMap((day) => [
+      day.visitors,
+      day.views,
+      day.storeViews,
+      day.signups,
+    ]);
+
+    return Math.max(...values, 1);
+  }, [dailyGrowth]);
+
+  const recentEvents = useMemo(() => {
+    return events.slice(0, 10);
+  }, [events]);
+
+  const recentOrders = useMemo(() => {
+    return orders.slice(0, 8);
+  }, [orders]);
 
   if (loading) {
     return (
       <main style={pageStyle}>
         <div style={containerStyle}>
-          <div style={loadingStyle}>
-            Loading platform analytics...
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main style={pageStyle}>
-        <div style={containerStyle}>
-          <div style={headerStyle}>
-            <div>
-              <div style={eyebrowStyle}>
-                SUPPLIERHUB OWNER
-              </div>
-
-              <h1 style={titleStyle}>
-                Growth Analytics
-              </h1>
-
-              <p style={subtitleStyle}>
-                Platform-wide growth and activity overview.
-              </p>
+          <div style={loadingCardStyle}>
+            <div style={loadingSpinnerStyle}>
+              ↻
             </div>
-          </div>
 
-          <div style={errorCardStyle}>
-            <div style={errorIconStyle}>!</div>
-
-            <h2 style={{ margin: "0 0 8px" }}>
-              Analytics unavailable
+            <h2 style={{ marginBottom: "8px" }}>
+              Loading Growth Analytics
             </h2>
 
-            <p
-              style={{
-                margin: 0,
-                color: "#9ca3af",
-                lineHeight: 1.6,
-              }}
-            >
-              {error}
+            <p style={mutedStyle}>
+              Collecting platform-wide growth data...
             </p>
           </div>
         </div>
@@ -117,715 +375,597 @@ export default function PlatformAnalytics() {
     );
   }
 
-  const daily = Array.isArray(analytics?.daily)
-    ? analytics.daily
-    : [];
-
-  const topStores = Array.isArray(
-    analytics?.top_stores
-  )
-    ? analytics.top_stores
-    : [];
-
-  const topReferrers = Array.isArray(
-    analytics?.top_referrers
-  )
-    ? analytics.top_referrers
-    : [];
-
-  const recentActivity = Array.isArray(
-    analytics?.recent_activity
-  )
-    ? analytics.recent_activity
-    : [];
-
-  const maxVisitors = Math.max(
-    ...daily.map((item) =>
-      Number(item.visitors || 0)
-    ),
-    1
-  );
-
-  const maxPageViews = Math.max(
-    ...daily.map((item) =>
-      Number(item.page_views || 0)
-    ),
-    1
-  );
-
-  const maxStoreViews = Math.max(
-    ...daily.map((item) =>
-      Number(item.store_views || 0)
-    ),
-    1
-  );
-
-  const maxSales = Math.max(
-    ...daily.map((item) =>
-      Number(item.sales || 0)
-    ),
-    1
-  );
-
-  const formatNumber = (value) =>
-    Number(value || 0).toLocaleString("en-IN");
-
-  const formatMoney = (value) =>
-    `₹${Number(value || 0).toLocaleString(
-      "en-IN"
-    )}`;
-
-  const formatDate = (value) => {
-    if (!value) return "-";
-
-    return new Date(value).toLocaleDateString(
-      "en-IN",
-      {
-        day: "2-digit",
-        month: "short",
-      }
-    );
-  };
-
-  const formatTime = (value) => {
-    if (!value) return "";
-
-    return new Date(value).toLocaleTimeString(
-      "en-IN",
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    );
-  };
-
-  const formatEventName = (eventType) => {
-    const names = {
-      page_view: "Page View",
-      store_view: "Store View",
-      signup_started: "Signup Started",
-      signup_completed: "Signup Completed",
-      order_placed: "Order Placed",
-      store_created: "Store Created",
-    };
-
+  if (!authorized) {
     return (
-      names[eventType] ||
-      String(eventType || "Activity")
-        .replaceAll("_", " ")
-        .replace(/\b\w/g, (char) =>
-          char.toUpperCase()
-        )
+      <main style={pageStyle}>
+        <div style={containerStyle}>
+          <div style={errorCardStyle}>
+            <div style={errorIconStyle}>!</div>
+
+            <h1 style={{ marginBottom: "10px" }}>
+              Access Denied
+            </h1>
+
+            <p style={mutedStyle}>
+              {error ||
+                "Only the SupplierHub owner can view this dashboard."}
+            </p>
+
+            <button
+              onClick={() => {
+                window.location.href = "/dashboard";
+              }}
+              style={secondaryButtonStyle}
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </main>
     );
-  };
+  }
 
   return (
     <main style={pageStyle}>
       <div style={containerStyle}>
+
         {/* HEADER */}
+
         <div style={headerStyle}>
           <div>
             <div style={eyebrowStyle}>
-              SUPPLIERHUB OWNER
+              OWNER CONTROL CENTER
             </div>
 
-            <h1 style={titleStyle}>
+            <h1 style={headingStyle}>
               Growth Analytics
             </h1>
 
-            <p style={subtitleStyle}>
-              Platform-wide growth, visitors, stores,
-              accounts and activity.
+            <p style={subheadingStyle}>
+              Platform-wide SupplierHub growth,
+              traffic and activity overview.
             </p>
           </div>
 
-          <button
-            onClick={() => loadAnalytics(true)}
-            disabled={refreshing}
-            style={{
-              ...refreshButtonStyle,
-              opacity: refreshing ? 0.6 : 1,
-              cursor: refreshing
-                ? "wait"
-                : "pointer",
-            }}
-          >
-            {refreshing
-              ? "Refreshing..."
-              : "↻ Refresh"}
-          </button>
+          <div style={headerActionsStyle}>
+            <select
+              value={period}
+              onChange={async (e) => {
+                setPeriod(e.target.value);
+              }}
+              style={selectStyle}
+            >
+              <option value="7">
+                Last 7 Days
+              </option>
+
+              <option value="30">
+                Last 30 Days
+              </option>
+
+              <option value="90">
+                Last 90 Days
+              </option>
+            </select>
+
+            <button
+              onClick={refreshAnalytics}
+              disabled={refreshing}
+              style={primaryButtonStyle}
+            >
+              {refreshing
+                ? "Refreshing..."
+                : "↻ Refresh"}
+            </button>
+          </div>
         </div>
 
+        {error && (
+          <div style={errorBannerStyle}>
+            {error}
+          </div>
+        )}
+
         {/* MAIN STATS */}
-        <section style={statsGridStyle}>
+
+        <div style={statsGridStyle}>
+
           <StatCard
-            icon="👀"
-            label="Total Visitors"
-            value={formatNumber(
-              analytics.total_visitors
-            )}
-            description="Unique visitors tracked"
+            title="Unique Visitors"
+            value={uniqueVisitors}
+            description="Distinct visitors tracked"
+            icon="◉"
           />
 
           <StatCard
-            icon="📄"
-            label="Page Views"
-            value={formatNumber(
-              analytics.total_page_views
-            )}
-            description="All tracked page visits"
+            title="Page Views"
+            value={pageViews}
+            description="Total pages viewed"
+            icon="◫"
           />
 
           <StatCard
-            icon="🏪"
-            label="Store Views"
-            value={formatNumber(
-              analytics.total_store_views
-            )}
+            title="Store Views"
+            value={storeViews}
             description="Public store visits"
+            icon="⌂"
           />
 
           <StatCard
-            icon="👤"
-            label="Accounts"
-            value={formatNumber(
-              analytics.total_accounts
-            )}
-            description="Registered accounts"
+            title="Accounts"
+            value={usersCount}
+            description="Unique signed-in users"
+            icon="◎"
           />
 
           <StatCard
-            icon="🏬"
-            label="Stores"
-            value={formatNumber(
-              analytics.total_stores
-            )}
-            description="Created supplier stores"
+            title="Stores"
+            value={storesCount}
+            description="Supplier stores created"
+            icon="▣"
           />
 
           <StatCard
-            icon="📦"
-            label="Products"
-            value={formatNumber(
-              analytics.total_products
-            )}
-            description="Products in all stores"
+            title="Completed Signups"
+            value={signupCompleted}
+            description="Accounts created"
+            icon="✓"
           />
 
           <StatCard
-            icon="🛒"
-            label="Orders"
-            value={formatNumber(
-              analytics.total_orders
-            )}
-            description="All platform orders"
+            title="Orders"
+            value={orders.length}
+            description="Orders in selected period"
+            icon="▤"
           />
 
           <StatCard
-            icon="💰"
-            label="Completed Sales"
-            value={formatMoney(
-              analytics.completed_sales
-            )}
-            description="Completed orders only"
-          />
-        </section>
-
-        {/* SECONDARY STATS */}
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "18px",
-            marginBottom: "28px",
-          }}
-        >
-          <MiniStat
-            label="Signup Started"
-            value={formatNumber(
-              analytics.signup_started
-            )}
+            title="Sales"
+            value={`₹${totalSales.toLocaleString(
+              "en-IN"
+            )}`}
+            description="Completed-order sales"
+            icon="₹"
           />
 
-          <MiniStat
-            label="Signup Completed"
-            value={formatNumber(
-              analytics.signup_completed
-            )}
-          />
+        </div>
 
-          <MiniStat
-            label="Unique Store Visitors"
-            value={formatNumber(
-              analytics.unique_store_visitors
-            )}
-          />
+        {/* GROWTH OVERVIEW */}
 
-          <MiniStat
-            label="Units Sold"
-            value={formatNumber(
-              analytics.units_sold
-            )}
-          />
-
-          <MiniStat
-            label="Pending Orders"
-            value={formatNumber(
-              analytics.pending_orders
-            )}
-          />
-
-          <MiniStat
-            label="Completed Orders"
-            value={formatNumber(
-              analytics.completed_orders
-            )}
-          />
-
-          <MiniStat
-            label="Rejected Orders"
-            value={formatNumber(
-              analytics.rejected_orders
-            )}
-          />
-
-          <MiniStat
-            label="Signup Conversion"
-            value={`${Number(
-              analytics.signup_conversion || 0
-            ).toFixed(2)}%`}
-          />
-        </section>
-
-        {/* 30 DAY ACTIVITY */}
         <section style={sectionStyle}>
           <div style={sectionHeaderStyle}>
             <div>
               <h2 style={sectionTitleStyle}>
-                30-Day Growth
+                Growth Overview
               </h2>
 
-              <p style={sectionSubtitleStyle}>
-                Visitor, page-view, store-view and
-                sales activity.
+              <p style={mutedStyle}>
+                Visitor and signup activity over the
+                selected period.
               </p>
-            </div>
-
-            <div style={legendStyle}>
-              <span>
-                <i
-                  style={{
-                    ...legendDotStyle,
-                    background: "#60a5fa",
-                  }}
-                />
-                Visitors
-              </span>
-
-              <span>
-                <i
-                  style={{
-                    ...legendDotStyle,
-                    background: "#34d399",
-                  }}
-                />
-                Store Views
-              </span>
-
-              <span>
-                <i
-                  style={{
-                    ...legendDotStyle,
-                    background: "#f59e0b",
-                  }}
-                />
-                Sales
-              </span>
             </div>
           </div>
 
-          <div
-            style={{
-              overflowX: "auto",
-              paddingBottom: "8px",
-            }}
-          >
-            <div
-              style={{
-                minWidth: "760px",
-                display: "flex",
-                alignItems: "flex-end",
-                gap: "8px",
-                height: "260px",
-                padding:
-                  "25px 10px 35px",
-                borderRadius: "14px",
-                background:
-                  "rgba(2, 6, 23, .45)",
-                border:
-                  "1px solid rgba(255,255,255,.05)",
-              }}
-            >
-              {daily.map((item, index) => {
+          <div style={chartContainerStyle}>
+            <div style={chartYAxisStyle}>
+              <span>
+                {maxGrowthValue}
+              </span>
+
+              <span>
+                {Math.round(
+                  maxGrowthValue * 0.75
+                )}
+              </span>
+
+              <span>
+                {Math.round(
+                  maxGrowthValue * 0.5
+                )}
+              </span>
+
+              <span>
+                {Math.round(
+                  maxGrowthValue * 0.25
+                )}
+              </span>
+
+              <span>0</span>
+            </div>
+
+            <div style={chartStyle}>
+              {dailyGrowth.map((day, index) => {
                 const visitorHeight =
-                  (Number(item.visitors || 0) /
-                    maxVisitors) *
-                  150;
+                  Math.max(
+                    4,
+                    (day.visitors /
+                      maxGrowthValue) *
+                      100
+                  );
 
-                const storeHeight =
-                  (Number(item.store_views || 0) /
-                    maxStoreViews) *
-                  150;
-
-                const salesHeight =
-                  (Number(item.sales || 0) /
-                    maxSales) *
-                  150;
+                const viewHeight =
+                  Math.max(
+                    4,
+                    (day.views /
+                      maxGrowthValue) *
+                      100
+                  );
 
                 return (
                   <div
-                    key={`${item.day}-${index}`}
-                    style={{
-                      flex: 1,
-                      minWidth: "18px",
-                      height: "100%",
-                      display: "flex",
-                      flexDirection:
-                        "column",
-                      justifyContent:
-                        "flex-end",
-                      alignItems: "center",
-                      gap: "3px",
-                      position: "relative",
-                    }}
+                    key={`${day.label}-${index}`}
+                    style={chartColumnStyle}
+                    title={`${day.label} — ${day.visitors} visitors, ${day.views} page views, ${day.signups} signups`}
                   >
                     <div
-                      title={`Visitors: ${formatNumber(
-                        item.visitors
-                      )}`}
-                      style={{
-                        width: "30%",
-                        minWidth: "4px",
-                        height: `${Math.max(
-                          visitorHeight,
-                          Number(
-                            item.visitors
-                          ) > 0
-                            ? 4
-                            : 0
-                        )}px`,
-                        background:
-                          "#60a5fa",
-                        borderRadius:
-                          "5px 5px 0 0",
-                        opacity: 0.9,
-                      }}
-                    />
-
-                    <div
-                      title={`Store views: ${formatNumber(
-                        item.store_views
-                      )}`}
-                      style={{
-                        width: "30%",
-                        minWidth: "4px",
-                        height: `${Math.max(
-                          storeHeight,
-                          Number(
-                            item.store_views
-                          ) > 0
-                            ? 4
-                            : 0
-                        )}px`,
-                        background:
-                          "#34d399",
-                        borderRadius:
-                          "5px 5px 0 0",
-                        opacity: 0.9,
-                      }}
-                    />
-
-                    <div
-                      title={`Sales: ${formatMoney(
-                        item.sales
-                      )}`}
-                      style={{
-                        width: "30%",
-                        minWidth: "4px",
-                        height: `${Math.max(
-                          salesHeight,
-                          Number(item.sales) >
-                            0
-                            ? 4
-                            : 0
-                        )}px`,
-                        background:
-                          "#f59e0b",
-                        borderRadius:
-                          "5px 5px 0 0",
-                        opacity: 0.9,
-                      }}
-                    />
-
-                    <span
-                      style={{
-                        position:
-                          "absolute",
-                        bottom: "-27px",
-                        fontSize: "10px",
-                        color: "#6b7280",
-                        whiteSpace:
-                          "nowrap",
-                        transform:
-                          "rotate(-45deg)",
-                        transformOrigin:
-                          "top center",
-                      }}
+                      style={barGroupStyle}
                     >
-                      {formatDate(
-                        item.day
-                      )}
-                    </span>
+                      <div
+                        style={{
+                          ...barStyle,
+                          height: `${visitorHeight}%`,
+                          opacity: 0.95,
+                        }}
+                      />
+
+                      <div
+                        style={{
+                          ...barStyle,
+                          height: `${viewHeight}%`,
+                          opacity: 0.45,
+                        }}
+                      />
+                    </div>
+
+                    {(index === 0 ||
+                      index ===
+                        dailyGrowth.length - 1 ||
+                      index %
+                        Math.max(
+                          1,
+                          Math.floor(
+                            dailyGrowth.length /
+                              6
+                          )
+                        ) ===
+                        0) && (
+                      <span
+                        style={
+                          chartLabelStyle
+                        }
+                      >
+                        {day.label}
+                      </span>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
+
+          <div style={legendStyle}>
+            <div style={legendItemStyle}>
+              <span
+                style={{
+                  ...legendDotStyle,
+                  opacity: 0.95,
+                }}
+              />
+              Visitors
+            </div>
+
+            <div style={legendItemStyle}>
+              <span
+                style={{
+                  ...legendDotStyle,
+                  opacity: 0.45,
+                }}
+              />
+              Page Views
+            </div>
+          </div>
         </section>
+        {/* CONVERSION + ACTIVITY */}
 
-        {/* TRAFFIC + STORES */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: "22px",
-            marginBottom: "28px",
-          }}
-        >
-          {/* TOP STORES */}
+        <div style={twoColumnGridStyle}>
+
           <section style={sectionStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <h2 style={sectionTitleStyle}>
-                  Most Viewed Stores
-                </h2>
+            <h2 style={sectionTitleStyle}>
+              Signup Funnel
+            </h2>
 
-                <p style={sectionSubtitleStyle}>
-                  Public store links receiving views.
-                </p>
+            <p style={mutedStyle}>
+              Visitor-to-account creation activity.
+            </p>
+
+            <div style={funnelListStyle}>
+
+              <FunnelRow
+                title="Signup Started"
+                value={signupStarted}
+                percentage={
+                  signupStarted > 0 ? 100 : 0
+              }
+              />
+
+              <FunnelRow
+                title="Signup Completed"
+                value={signupCompleted}
+                percentage={
+                  signupStarted > 0
+                    ? Math.round(
+                        (signupCompleted /
+                          signupStarted) *
+                          100
+                      )
+                    : 0
+                }
+              />
+
+              <div style={conversionBoxStyle}>
+                <div>
+                  <span style={mutedStyle}>
+                    Signup Conversion
+                  </span>
+
+                  <strong
+                    style={{
+                      display: "block",
+                      fontSize: "28px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {signupConversion}%
+                  </strong>
+                </div>
+
+                <span
+                  style={{
+                    fontSize: "30px",
+                  }}
+                >
+                  %
+                </span>
               </div>
             </div>
-
-            {topStores.length === 0 ? (
-              <EmptyState text="No store views recorded yet." />
-            ) : (
-              <div>
-                {topStores.map(
-                  (store, index) => (
-                    <div
-                      key={`${store.store_slug}-${index}`}
-                      style={listRowStyle}
-                    >
-                      <div
-                        style={{
-                          width: "34px",
-                          height: "34px",
-                          borderRadius: "10px",
-                          background:
-                            "rgba(37,99,235,.15)",
-                          display: "flex",
-                          alignItems:
-                            "center",
-                          justifyContent:
-                            "center",
-                          color: "#93c5fd",
-                          fontWeight: "800",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {index + 1}
-                      </div>
-
-                      <div
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: "700",
-                            color: "#fff",
-                            overflow:
-                              "hidden",
-                            textOverflow:
-                              "ellipsis",
-                            whiteSpace:
-                              "nowrap",
-                          }}
-                        >
-                          /store/
-                          {store.store_slug}
-                        </div>
-
-                        <div
-                          style={{
-                            color:
-                              "#6b7280",
-                            fontSize:
-                              "12px",
-                            marginTop:
-                              "3px",
-                          }}
-                        >
-                          {
-                            formatNumber(
-                              store.unique_visitors
-                            )
-                          }{" "}
-                          unique visitors
-                        </div>
-                      </div>
-
-                      <strong
-                        style={{
-                          color: "#60a5fa",
-                        }}
-                      >
-                        {formatNumber(
-                          store.views
-                        )}
-                      </strong>
-                    </div>
-                  )
-                )}
-              </div>
-            )}
           </section>
 
-          {/* REFERRERS */}
           <section style={sectionStyle}>
-            <div style={sectionHeaderStyle}>
-              <div>
-                <h2 style={sectionTitleStyle}>
-                  Traffic Sources
-                </h2>
+            <h2 style={sectionTitleStyle}>
+              Order Overview
+            </h2>
 
-                <p style={sectionSubtitleStyle}>
-                  Where tracked page visitors came from.
-                </p>
-              </div>
+            <p style={mutedStyle}>
+              Platform order activity in the selected
+              period.
+            </p>
+
+            <div style={orderStatsGridStyle}>
+
+              <MiniStat
+                title="Pending"
+                value={pendingOrders.length}
+              />
+
+              <MiniStat
+                title="Completed"
+                value={completedOrders.length}
+              />
+
+              <MiniStat
+                title="Rejected"
+                value={rejectedOrders.length}
+              />
+
+              <MiniStat
+                title="Units Sold"
+                value={unitsSold}
+              />
+
             </div>
-
-            {topReferrers.length === 0 ? (
-              <EmptyState text="No referral data recorded yet." />
-            ) : (
-              <div>
-                {topReferrers.map(
-                  (source, index) => (
-                    <div
-                      key={`${source.referrer}-${index}`}
-                      style={listRowStyle}
-                    >
-                      <div
-                        style={{
-                          width: "34px",
-                          height: "34px",
-                          borderRadius: "10px",
-                          background:
-                            "rgba(16,185,129,.12)",
-                          display: "flex",
-                          alignItems:
-                            "center",
-                          justifyContent:
-                            "center",
-                          color: "#6ee7b7",
-                          fontWeight: "800",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {index + 1}
-                      </div>
-
-                      <div
-                        style={{
-                                         flex: 1,
-                          minWidth: 0,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: "700",
-                            color: "#fff",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {source.referrer || "Direct"}
-                        </div>
-
-                        <div
-                          style={{
-                            color: "#6b7280",
-                            fontSize: "12px",
-                            marginTop: "3px",
-                          }}
-                        >
-                          {formatNumber(source.visitors)} visitors
-                        </div>
-                      </div>
-
-                      <strong
-                        style={{
-                          color: "#34d399",
-                        }}
-                      >
-                        {formatNumber(source.views)}
-                      </strong>
-                    </div>
-                  )
-                )}
-              </div>
-            )}
           </section>
+
         </div>
 
-        {/* RECENT ACTIVITY */}
+        {/* TOP STORES */}
+
         <section style={sectionStyle}>
           <div style={sectionHeaderStyle}>
             <div>
               <h2 style={sectionTitleStyle}>
-                Recent Activity
+                Most Viewed Stores
               </h2>
 
-              <p style={sectionSubtitleStyle}>
-                Latest tracked platform events.
+              <p style={mutedStyle}>
+                Public store traffic during the
+                selected period.
+              </p>
+            </div>
+
+            <span style={smallBadgeStyle}>
+              {storeViewVisitors} unique visitors
+            </span>
+          </div>
+
+          {topStores.length === 0 ? (
+            <EmptyState text="No public store views tracked yet." />
+          ) : (
+            <div style={tableStyle}>
+              <div style={tableHeaderStyle}>
+                <span>Store</span>
+                <span>Views</span>
+                <span>Visitors</span>
+              </div>
+
+              {topStores.map((store, index) => (
+                <div
+                  key={store.slug}
+                  style={tableRowStyle}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <span
+                      style={rankStyle}
+                    >
+                      {index + 1}
+                    </span>
+
+                    <div>
+                      <strong>
+                        {store.slug}
+                      </strong>
+
+                      <div
+                        style={{
+                          color: "#6b7280",
+                          fontSize: "12px",
+                          marginTop: "3px",
+                        }}
+                      >
+                        /store/{store.slug}
+                      </div>
+                    </div>
+                  </div>
+
+                  <strong>
+                    {store.views}
+                  </strong>
+
+                  <span style={mutedStyle}>
+                    {store.visitors}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* RECENT ORDERS */}
+
+        <section style={sectionStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>
+                Recent Orders
+              </h2>
+
+              <p style={mutedStyle}>
+                Latest platform order activity.
               </p>
             </div>
           </div>
 
-          {recentActivity.length === 0 ? (
-            <EmptyState text="No recent activity recorded yet." />
+          {recentOrders.length === 0 ? (
+            <EmptyState text="No orders found in this period." />
           ) : (
-            <div>
-              {recentActivity.map((activity, index) => (
+            <div style={tableStyle}>
+              <div style={orderTableHeaderStyle}>
+                <span>Customer</span>
+                <span>Quantity</span>
+                <span>Total</span>
+                <span>Status</span>
+                <span>Date</span>
+              </div>
+
+              {recentOrders.map((order) => (
                 <div
-                  key={`${activity.created_at}-${index}`}
-                  style={activityRowStyle}
+                  key={order.id}
+                  style={orderTableRowStyle}
                 >
-                  <div style={activityIconStyle}>
-                    {activity.event_type === "order_placed"
-                      ? "🛒"
-                      : activity.event_type === "signup_completed"
-                      ? "👤"
-                      : activity.event_type === "store_created"
-                      ? "🏪"
-                      : activity.event_type === "store_view"
-                      ? "🏬"
-                      : "📊"}
+                  <div>
+                    <strong>
+                      {order.customer_name ||
+                        "Customer"}
+                    </strong>
+
+                    <div
+                      style={{
+                        color: "#6b7280",
+                        fontSize: "12px",
+                        marginTop: "3px",
+                      }}
+                    >
+                      Order #{order.id.slice(0, 8)}
+                    </div>
+                  </div>
+
+                  <span>
+                    {order.quantity}
+                  </span>
+
+                  <strong>
+                    ₹
+                    {Number(
+                      order.total_amount || 0
+                    ).toLocaleString("en-IN")}
+                  </strong>
+
+                  <StatusBadge
+                    status={order.status}
+                  />
+
+                  <span style={mutedStyle}>
+                    {new Date(
+                      order.created_at
+                    ).toLocaleDateString(
+                      "en-IN"
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* TRACKING ACTIVITY */}
+
+        <section style={sectionStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>
+                Recent Tracking Activity
+              </h2>
+
+              <p style={mutedStyle}>
+                Latest analytics events recorded by
+                SupplierHub.
+              </p>
+            </div>
+
+            <span style={smallBadgeStyle}>
+              {events.length} events
+            </span>
+          </div>
+
+          {recentEvents.length === 0 ? (
+            <EmptyState text="No analytics events recorded yet." />
+          ) : (
+            <div style={activityListStyle}>
+              {recentEvents.map((event) => (
+                <div
+                  key={event.id}
+                  style={activityItemStyle}
+                >
+                  <div
+                    style={
+                      activityIconStyle
+                    }
+                  >
+                    {event.event_type ===
+                    "store_view"
+                      ? "⌂"
+                      : event.event_type ===
+                        "signup_completed"
+                      ? "✓"
+                      : event.event_type ===
+                        "signup_started"
+                      ? "→"
+                      : "•"}
                   </div>
 
                   <div
@@ -834,17 +974,11 @@ export default function PlatformAnalytics() {
                       minWidth: 0,
                     }}
                   >
-                    <div
-                      style={{
-                        color: "#fff",
-                        fontWeight: "700",
-                        fontSize: "14px",
-                      }}
-                    >
+                    <strong>
                       {formatEventName(
-                        activity.event_type
+                        event.event_type
                       )}
-                    </div>
+                    </strong>
 
                     <div
                       style={{
@@ -853,349 +987,623 @@ export default function PlatformAnalytics() {
                         marginTop: "4px",
                       }}
                     >
-                      {activity.description ||
-                        activity.email ||
-                        activity.store_slug ||
-                        "Platform activity"}
+                      {event.path ||
+                        "Unknown page"}
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      textAlign: "right",
-                      flexShrink: 0,
-                    }}
+                  <span
+                    style={activityTimeStyle}
                   >
-                    <div
-                      style={{
-                        color: "#9ca3af",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {formatDate(activity.created_at)}
-                    </div>
-
-                    <div
-                      style={{
-                        color: "#6b7280",
-                        fontSize: "11px",
-                        marginTop: "3px",
-                      }}
-                    >
-                      {formatTime(activity.created_at)}
-                    </div>
-                  </div>
+                    {formatRelativeTime(
+                      event.created_at
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
           )}
         </section>
 
-        {/* FOOTER */}
-        <div
-          style={{
-            marginTop: "28px",
-            padding: "18px 20px",
-            borderRadius: "16px",
-            background: "rgba(15,23,42,.65)",
-            border: "1px solid rgba(255,255,255,.06)",
-            color: "#6b7280",
-            fontSize: "12px",
-            textAlign: "center",
-          }}
-        >
-          SupplierHub Platform Analytics
+        {/* FOOTER NOTE */}
+
+        <div style={footerNoteStyle}>
+          <strong>
+            Owner-only analytics
+          </strong>
+
+          <span>
+            This dashboard is restricted to the
+            SupplierHub platform administrator.
+          </span>
         </div>
+
       </div>
     </main>
   );
 }
 
-/* =========================
-   COMPONENTS
-========================= */
-
 function StatCard({
-  icon,
-  label,
+  title,
   value,
   description,
+  icon,
 }) {
   return (
     <div style={statCardStyle}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "18px",
-        }}
-      >
-        <div style={statIconStyle}>{icon}</div>
+      <div style={statTopStyle}>
+        <span style={statIconStyle}>
+          {icon}
+        </span>
 
-        <div
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            background: "#34d399",
-            boxShadow: "0 0 12px rgba(52,211,153,.45)",
-          }}
-        />
+        <span style={statTitleStyle}>
+          {title}
+        </span>
       </div>
 
-      <div
-        style={{
-          color: "#9ca3af",
-          fontSize: "13px",
-          marginBottom: "7px",
-        }}
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          color: "#fff",
-          fontSize: "28px",
-          fontWeight: "800",
-          letterSpacing: "-0.5px",
-        }}
-      >
+      <div style={statValueStyle}>
         {value}
       </div>
 
-      <div
-        style={{
-          color: "#6b7280",
-          fontSize: "11px",
-          marginTop: "7px",
-        }}
-      >
+      <div style={statDescriptionStyle}>
         {description}
       </div>
     </div>
   );
 }
 
-function MiniStat({ label, value }) {
+function MiniStat({ title, value }) {
   return (
-    <div
-      style={{
-        padding: "18px 20px",
-        borderRadius: "14px",
-        background: "rgba(15,23,42,.65)",
-        border: "1px solid rgba(255,255,255,.06)",
-      }}
-    >
-      <div
-        style={{
-          color: "#6b7280",
-          fontSize: "12px",
-          marginBottom: "8px",
-        }}
-      >
-        {label}
-      </div>
+    <div style={miniStatStyle}>
+      <span style={mutedStyle}>
+        {title}
+      </span>
 
-      <div
+      <strong
         style={{
-          color: "#fff",
-          fontSize: "20px",
-          fontWeight: "800",
+          fontSize: "25px",
+          marginTop: "5px",
         }}
       >
         {value}
+      </strong>
+    </div>
+  );
+}
+
+function FunnelRow({
+  title,
+  value,
+  percentage,
+}) {
+  return (
+    <div style={funnelRowStyle}>
+      <div style={funnelHeaderStyle}>
+        <span>{title}</span>
+
+        <strong>{value}</strong>
+      </div>
+
+      <div style={progressTrackStyle}>
+        <div
+          style={{
+            ...progressFillStyle,
+            width: `${Math.min(
+              100,
+              Math.max(0, percentage)
+            )}%`,
+          }}
+        />
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  let label = "Pending";
+
+  if (status === "completed") {
+    label = "Completed";
+  } else if (status === "cancelled") {
+    label = "Rejected";
+  }
+
+  return (
+    <span
+      style={{
+        ...statusBadgeStyle,
+        background:
+          status === "completed"
+            ? "rgba(34,197,94,.12)"
+            : status === "cancelled"
+            ? "rgba(239,68,68,.12)"
+            : "rgba(234,179,8,.12)",
+        color:
+          status === "completed"
+            ? "#86efac"
+            : status === "cancelled"
+            ? "#fca5a5"
+            : "#fde68a",
+      }}
+    >
+      {label}
+    </span>
   );
 }
 
 function EmptyState({ text }) {
   return (
-    <div
-      style={{
-        padding: "35px 20px",
-        textAlign: "center",
-        color: "#6b7280",
-        fontSize: "13px",
-        borderRadius: "12px",
-        background: "rgba(2,6,23,.35)",
-        border: "1px dashed rgba(255,255,255,.07)",
-      }}
-    >
+    <div style={emptyStateStyle}>
       {text}
     </div>
   );
 }
 
-/* =========================
-   STYLES
-========================= */
+function formatEventName(eventType) {
+  if (!eventType) return "Unknown Event";
 
+  return eventType
+    .split("_")
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase() +
+        word.slice(1)
+    )
+    .join(" ");
+}
+
+function formatRelativeTime(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+
+  const diffSeconds = Math.floor(
+    (now.getTime() - date.getTime()) / 1000
+  );
+
+  if (diffSeconds < 60) {
+    return "Just now";
+  }
+
+  const minutes = Math.floor(
+    diffSeconds / 60
+  );
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(
+    minutes / 60
+  );
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(
+    hours / 24
+  );
+
+  if (days < 30) {
+    return `${days}d ago`;
+  }
+
+  return date.toLocaleDateString("en-IN");
+                  }
 const pageStyle = {
   minHeight: "100vh",
   background:
-    "radial-gradient(circle at top right, rgba(37,99,235,.12), transparent 30%), #020617",
+    "linear-gradient(135deg, #05070d 0%, #0b1020 50%, #111827 100%)",
   color: "#fff",
-  padding: "32px 20px 50px",
-  boxSizing: "border-box",
+  padding: "35px 20px 60px",
+  fontFamily:
+    "Arial, Helvetica, sans-serif",
 };
 
 const containerStyle = {
-  width: "100%",
-  maxWidth: "1400px",
+  maxWidth: "1250px",
   margin: "0 auto",
 };
 
 const headerStyle = {
   display: "flex",
-  alignItems: "flex-end",
   justifyContent: "space-between",
+  alignItems: "flex-end",
   gap: "20px",
-  marginBottom: "28px",
+  marginBottom: "30px",
+  flexWrap: "wrap",
+};
+
+const headerActionsStyle = {
+  display: "flex",
+  gap: "10px",
+  alignItems: "center",
   flexWrap: "wrap",
 };
 
 const eyebrowStyle = {
   color: "#60a5fa",
-  fontSize: "11px",
+  fontSize: "12px",
   fontWeight: "800",
-  letterSpacing: "1.8px",
+  letterSpacing: "2px",
   marginBottom: "8px",
 };
 
-const titleStyle = {
+const headingStyle = {
+  fontSize: "42px",
+  lineHeight: "1.05",
   margin: 0,
-  fontSize: "clamp(28px, 4vw, 42px)",
-  fontWeight: "850",
-  letterSpacing: "-1px",
+  fontWeight: "800",
 };
 
-const subtitleStyle = {
-  margin: "8px 0 0",
-  color: "#6b7280",
-  fontSize: "14px",
-  lineHeight: 1.6,
-};
-
-const refreshButtonStyle = {
-  border: "1px solid rgba(96,165,250,.25)",
-  background: "rgba(37,99,235,.12)",
-  color: "#93c5fd",
-  borderRadius: "12px",
-  padding: "11px 16px",
-  fontWeight: "700",
-  fontSize: "13px",
-};
-
-const loadingStyle = {
-  minHeight: "70vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+const subheadingStyle = {
   color: "#9ca3af",
-  fontSize: "14px",
+  marginTop: "10px",
+  fontSize: "15px",
 };
 
-const errorCardStyle = {
-  padding: "28px",
-  borderRadius: "18px",
-  background: "rgba(127,29,29,.15)",
-  border: "1px solid rgba(248,113,113,.2)",
-  marginTop: "30px",
+const selectStyle = {
+  padding: "12px 14px",
+  borderRadius: "10px",
+  border: "1px solid #374151",
+  background: "#111827",
+  color: "#fff",
+  fontWeight: "600",
+  outline: "none",
 };
 
-const errorIconStyle = {
-  width: "38px",
-  height: "38px",
-  borderRadius: "12px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "rgba(248,113,113,.12)",
-  color: "#fca5a5",
-  fontWeight: "900",
-  marginBottom: "15px",
+const primaryButtonStyle = {
+  padding: "12px 18px",
+  borderRadius: "10px",
+  border: "none",
+  background: "#2563eb",
+  color: "#fff",
+  fontWeight: "700",
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle = {
+  marginTop: "20px",
+  padding: "12px 20px",
+  borderRadius: "10px",
+  border: "1px solid #374151",
+  background: "#1f2937",
+  color: "#fff",
+  fontWeight: "700",
+  cursor: "pointer",
 };
 
 const statsGridStyle = {
   display: "grid",
   gridTemplateColumns:
-    "repeat(auto-fit, minmax(210px, 1fr))",
-  gap: "18px",
-  marginBottom: "28px",
+    "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+  marginBottom: "20px",
 };
 
 const statCardStyle = {
   padding: "20px",
   borderRadius: "16px",
   background:
-    "linear-gradient(145deg, rgba(15,23,42,.92), rgba(15,23,42,.62))",
-  border: "1px solid rgba(255,255,255,.06)",
-  boxShadow: "0 15px 35px rgba(0,0,0,.18)",
+    "linear-gradient(145deg, rgba(17,24,39,.96), rgba(11,18,32,.96))",
+  border:
+    "1px solid rgba(255,255,255,.08)",
+  boxShadow:
+    "0 18px 45px rgba(0,0,0,.25)",
+};
+
+const statTopStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
 };
 
 const statIconStyle = {
-  width: "42px",
-  height: "42px",
-  borderRadius: "12px",
+  width: "34px",
+  height: "34px",
+  borderRadius: "10px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "rgba(37,99,235,.12)",
-  fontSize: "19px",
+  background: "rgba(37,99,235,.15)",
+  color: "#60a5fa",
+  fontWeight: "800",
+};
+
+const statTitleStyle = {
+  color: "#d1d5db",
+  fontSize: "14px",
+  fontWeight: "600",
+};
+
+const statValueStyle = {
+  fontSize: "30px",
+  fontWeight: "800",
+  marginTop: "18px",
+};
+
+const statDescriptionStyle = {
+  color: "#6b7280",
+  fontSize: "12px",
+  marginTop: "6px",
 };
 
 const sectionStyle = {
+  marginBottom: "20px",
   padding: "22px",
-  borderRadius: "18px",
+  borderRadius: "16px",
   background:
-    "linear-gradient(145deg, rgba(15,23,42,.88), rgba(15,23,42,.58))",
-  border: "1px solid rgba(255,255,255,.06)",
-  boxShadow: "0 15px 35px rgba(0,0,0,.16)",
-  marginBottom: "28px",
+    "rgba(17,24,39,.82)",
+  border:
+    "1px solid rgba(255,255,255,.07)",
+  boxShadow:
+    "0 15px 40px rgba(0,0,0,.2)",
 };
 
 const sectionHeaderStyle = {
   display: "flex",
-  alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: "20px",
+  alignItems: "center",
+  gap: "15px",
   marginBottom: "20px",
   flexWrap: "wrap",
 };
 
 const sectionTitleStyle = {
   margin: 0,
-  fontSize: "18px",
+  fontSize: "21px",
   fontWeight: "800",
 };
 
-const sectionSubtitleStyle = {
-  margin: "6px 0 0",
+const mutedStyle = {
+  color: "#9ca3af",
+  fontSize: "13px",
+};
+
+const chartContainerStyle = {
+  display: "flex",
+  height: "260px",
+  marginTop: "20px",
+};
+
+const chartYAxisStyle = {
+  width: "45px",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
   color: "#6b7280",
-  fontSize: "12px",
-  lineHeight: 1.5,
+  fontSize: "10px",
+  paddingBottom: "25px",
+};
+
+const chartStyle = {
+  flex: 1,
+  display: "flex",
+  alignItems: "stretch",
+  gap: "4px",
+  borderBottom:
+    "1px solid rgba(255,255,255,.08)",
+  overflow: "hidden",
+};
+
+const chartColumnStyle = {
+  flex: 1,
+  minWidth: "5px",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "flex-end",
+  position: "relative",
+};
+
+const barGroupStyle = {
+  height: "210px",
+  display: "flex",
+  alignItems: "flex-end",
+  justifyContent: "center",
+  gap: "2px",
+};
+
+const barStyle = {
+  width: "45%",
+  minHeight: "4px",
+  borderRadius: "4px 4px 0 0",
+  background:
+    "linear-gradient(180deg, #60a5fa, #2563eb)",
+};
+
+const chartLabelStyle = {
+  color: "#6b7280",
+  fontSize: "9px",
+  textAlign: "center",
+  marginTop: "6px",
+  whiteSpace: "nowrap",
 };
 
 const legendStyle = {
   display: "flex",
-  gap: "15px",
-  flexWrap: "wrap",
+  gap: "20px",
+  marginTop: "14px",
+};
+
+const legendItemStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "7px",
   color: "#9ca3af",
-  fontSize: "11px",
+  fontSize: "12px",
 };
 
 const legendDotStyle = {
-  display: "inline-block",
-  width: "7px",
-  height: "7px",
-  borderRadius: "50%",
-  marginRight: "5px",
+  width: "9px",
+  height: "9px",
+  borderRadius: "3px",
+  background: "#60a5fa",
 };
 
-const listRowStyle = {
+const twoColumnGridStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: "20px",
+};
+
+const funnelListStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "20px",
+  marginTop: "22px",
+};
+
+const funnelRowStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+};
+
+const funnelHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  color: "#d1d5db",
+  fontSize: "14px",
+};
+
+const progressTrackStyle = {
+  width: "100%",
+  height: "8px",
+  borderRadius: "10px",
+  background: "#1f2937",
+  overflow: "hidden",
+};
+
+const progressFillStyle = {
+  height: "100%",
+  borderRadius: "10px",
+  background:
+    "linear-gradient(90deg, #2563eb, #60a5fa)",
+};
+
+const conversionBoxStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "16px",
+  borderRadius: "12px",
+  background: "rgba(37,99,235,.08)",
+  border:
+    "1px solid rgba(37,99,235,.18)",
+};
+
+const orderStatsGridStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "repeat(2, 1fr)",
+  gap: "12px",
+  marginTop: "22px",
+};
+
+const miniStatStyle = {
+  padding: "16px",
+  borderRadius: "12px",
+  background: "#0b1220",
+  border:
+    "1px solid rgba(255,255,255,.06)",
+  display: "flex",
+  flexDirection: "column",
+};
+
+const tableStyle = {
+  borderRadius: "12px",
+  overflow: "hidden",
+  border:
+    "1px solid rgba(255,255,255,.06)",
+};
+
+const tableHeaderStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "1fr 120px 120px",
+  gap: "15px",
+  padding: "13px 15px",
+  background: "#0b1220",
+  color: "#6b7280",
+  fontSize: "11px",
+  textTransform: "uppercase",
+  letterSpacing: "1px",
+};
+
+const tableRowStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "1fr 120px 120px",
+  gap: "15px",
+  padding: "15px",
+  alignItems: "center",
+  borderTop:
+    "1px solid rgba(255,255,255,.05)",
+};
+
+const rankStyle = {
+  width: "28px",
+  height: "28px",
+  borderRadius: "8px",
+  background: "#1f2937",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#9ca3af",
+  fontSize: "12px",
+  fontWeight: "800",
+};
+
+const smallBadgeStyle = {
+  padding: "7px 10px",
+  borderRadius: "20px",
+  background: "rgba(37,99,235,.1)",
+  color: "#93c5fd",
+  fontSize: "11px",
+  fontWeight: "700",
+};
+
+const orderTableHeaderStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "1.5fr .6fr .9fr .9fr 1fr",
+  gap: "12px",
+  padding: "13px 15px",
+  background: "#0b1220",
+  color: "#6b7280",
+  fontSize: "11px",
+  textTransform: "uppercase",
+  letterSpacing: "1px",
+};
+
+const orderTableRowStyle = {
+  display: "grid",
+  gridTemplateColumns:
+    "1.5fr .6fr .9fr .9fr 1fr",
+  gap: "12px",
+  padding: "15px",
+  alignItems: "center",
+  borderTop:
+    "1px solid rgba(255,255,255,.05)",
+  fontSize: "13px",
+};
+
+const statusBadgeStyle = {
+  display: "inline-flex",
+  width: "fit-content",
+  padding: "6px 9px",
+  borderRadius: "20px",
+  fontSize: "11px",
+  fontWeight: "700",
+};
+
+const activityListStyle = {
+  display: "flex",
+  flexDirection: "column",
+};
+
+const activityItemStyle = {
   display: "flex",
   alignItems: "center",
   gap: "12px",
@@ -1204,22 +1612,89 @@ const listRowStyle = {
     "1px solid rgba(255,255,255,.05)",
 };
 
-const activityRowStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "13px",
-  padding: "14px 0",
-  borderBottom:
-    "1px solid rgba(255,255,255,.05)",
-};
-
 const activityIconStyle = {
-  width: "40px",
-  height: "40px",
-  borderRadius: "12px",
+  width: "34px",
+  height: "34px",
+  flexShrink: 0,
+  borderRadius: "10px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "rgba(37,99,235,.10)",
-  flexShrink: 0,
+  background: "#1f2937",
+  color: "#93c5fd",
+  fontWeight: "800",
+};
+
+const activityTimeStyle = {
+  color: "#6b7280",
+  fontSize: "11px",
+};
+
+const emptyStateStyle = {
+  padding: "35px 15px",
+  textAlign: "center",
+  color: "#6b7280",
+  fontSize: "13px",
+};
+
+const footerNoteStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "5px",
+  padding: "18px",
+  borderRadius: "14px",
+  background: "rgba(37,99,235,.06)",
+  border:
+    "1px solid rgba(37,99,235,.12)",
+  color: "#9ca3af",
+  fontSize: "12px",
+};
+
+const loadingCardStyle = {
+  minHeight: "70vh",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+};
+
+const loadingSpinnerStyle = {
+  fontSize: "40px",
+  marginBottom: "15px",
+  color: "#60a5fa",
+};
+
+const errorCardStyle = {
+  minHeight: "70vh",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  padding: "20px",
+};
+
+const errorIconStyle = {
+  width: "60px",
+  height: "60px",
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "rgba(239,68,68,.12)",
+  color: "#f87171",
+  fontSize: "30px",
+  fontWeight: "800",
+  marginBottom: "18px",
+};
+
+const errorBannerStyle = {
+  padding: "13px 15px",
+  marginBottom: "20px",
+  borderRadius: "10px",
+  background: "#3f1d1d",
+  border: "1px solid #7f1d1d",
+  color: "#fecaca",
+  fontSize: "13px",
 };
