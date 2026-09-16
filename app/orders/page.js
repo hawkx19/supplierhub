@@ -106,7 +106,7 @@ export default function Orders() {
     (order) => order.status === 'completed'
   ).length;
 
-  const cancelledCount = orders.filter(
+  const rejectedCount = orders.filter(
     (order) => order.status === 'cancelled'
   ).length;
 
@@ -114,42 +114,24 @@ export default function Orders() {
     const searchText = search.trim().toLowerCase();
 
     return orders.filter((order) => {
-      /* =========================
-         SEARCH
-      ========================= */
-
       const productName =
         order.products?.name || '';
 
       const customerName =
         order.customer_name || '';
 
-      const customerPhone =
+      const phone =
         order.customer_phone || '';
 
       const matchesSearch =
         !searchText ||
-        customerName
-          .toLowerCase()
-          .includes(searchText) ||
-        customerPhone
-          .toLowerCase()
-          .includes(searchText) ||
-        productName
-          .toLowerCase()
-          .includes(searchText);
-
-      /* =========================
-         STATUS FILTER
-      ========================= */
+        customerName.toLowerCase().includes(searchText) ||
+        phone.toLowerCase().includes(searchText) ||
+        productName.toLowerCase().includes(searchText);
 
       const matchesStatus =
         statusFilter === 'all' ||
         order.status === statusFilter;
-
-      /* =========================
-         DATE FILTER
-      ========================= */
 
       let matchesDate = true;
 
@@ -159,28 +141,19 @@ export default function Orders() {
 
         if (dateFilter === 'today') {
           matchesDate =
-            orderDate.toDateString() ===
-            now.toDateString();
+            orderDate.toDateString() === now.toDateString();
         }
 
         if (dateFilter === '7days') {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(
-            now.getDate() - 7
-          );
-
-          matchesDate =
-            orderDate >= sevenDaysAgo;
+          const date = new Date();
+          date.setDate(date.getDate() - 7);
+          matchesDate = orderDate >= date;
         }
 
         if (dateFilter === '30days') {
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(
-            now.getDate() - 30
-          );
-
-          matchesDate =
-            orderDate >= thirtyDaysAgo;
+          const date = new Date();
+          date.setDate(date.getDate() - 30);
+          matchesDate = orderDate >= date;
         }
       }
 
@@ -190,12 +163,7 @@ export default function Orders() {
         matchesDate
       );
     });
-  }, [
-    orders,
-    search,
-    statusFilter,
-    dateFilter,
-  ]);
+  }, [orders, search, statusFilter, dateFilter]);
 
   const clearFilters = () => {
     setSearch('');
@@ -204,7 +172,7 @@ export default function Orders() {
   };
 
   const hasFilters =
-    search ||
+    search !== '' ||
     statusFilter !== 'all' ||
     dateFilter !== 'all';
 
@@ -224,19 +192,12 @@ export default function Orders() {
           margin: '0 auto',
         }}
       >
+        {/* HEADER */}
 
-        {/* =========================
-            HEADER
-        ========================= */}
-
-        <div
-          style={{
-            marginBottom: '30px',
-          }}
-        >
+        <div style={{ marginBottom: '30px' }}>
           <h1
             style={{
-              marginBottom: '8px',
+              margin: '0 0 8px',
               fontSize: '34px',
             }}
           >
@@ -253,9 +214,7 @@ export default function Orders() {
           </p>
         </div>
 
-        {/* =========================
-            STATS
-        ========================= */}
+        {/* STATS */}
 
         <div
           style={{
@@ -283,13 +242,11 @@ export default function Orders() {
 
           <StatCard
             title="Rejected"
-            value={cancelledCount}
+            value={rejectedCount}
           />
         </div>
 
-        {/* =========================
-            FILTERS
-        ========================= */}
+        {/* FILTERS */}
 
         <div
           style={{
@@ -311,31 +268,13 @@ export default function Orders() {
               alignItems: 'center',
             }}
           >
-
-            {/* SEARCH */}
-
             <input
               type="text"
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search customer, phone or product..."
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '12px 14px',
-                borderRadius: '9px',
-                border:
-                  '1px solid #d1d5db',
-                outline: 'none',
-                fontSize: '14px',
-                color: '#111827',
-                background: '#fff',
-              }}
+              style={inputStyle}
             />
-
-            {/* STATUS */}
 
             <select
               value={statusFilter}
@@ -344,24 +283,11 @@ export default function Orders() {
               }
               style={selectStyle}
             >
-              <option value="all">
-                All Status
-              </option>
-
-              <option value="pending">
-                Pending
-              </option>
-
-              <option value="completed">
-                Completed
-              </option>
-
-              <option value="cancelled">
-                Rejected
-              </option>
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Rejected</option>
             </select>
-
-            {/* DATE */}
 
             <select
               value={dateFilter}
@@ -370,24 +296,11 @@ export default function Orders() {
               }
               style={selectStyle}
             >
-              <option value="all">
-                All Dates
-              </option>
-
-              <option value="today">
-                Today
-              </option>
-
-              <option value="7days">
-                Last 7 Days
-              </option>
-
-              <option value="30days">
-                Last 30 Days
-              </option>
+              <option value="all">All Dates</option>
+              <option value="today">Today</option>
+              <option value="7days">Last 7 Days</option>
+              <option value="30days">Last 30 Days</option>
             </select>
-
-            {/* CLEAR */}
 
             {hasFilters && (
               <button
@@ -395,13 +308,11 @@ export default function Orders() {
                 style={{
                   padding: '12px 16px',
                   borderRadius: '9px',
-                  border:
-                    '1px solid #d1d5db',
+                  border: '1px solid #d1d5db',
                   background: '#fff',
                   color: '#374151',
                   cursor: 'pointer',
                   fontWeight: '700',
-                  whiteSpace: 'nowrap',
                 }}
               >
                 Clear
@@ -421,9 +332,7 @@ export default function Orders() {
           </div>
         </div>
 
-        {/* =========================
-            ERROR
-        ========================= */}
+        {/* ERROR */}
 
         {error && (
           <div
@@ -433,112 +342,37 @@ export default function Orders() {
               borderRadius: '10px',
               background: '#fee2e2',
               color: '#991b1b',
-              border:
-                '1px solid #fecaca',
+              border: '1px solid #fecaca',
             }}
           >
             {error}
           </div>
         )}
 
-        {/* =========================
-            LOADING
-        ========================= */}
+        {/* CONTENT */}
 
         {loading ? (
-          <div
-            style={{
-              padding: '40px',
-              background: '#fff',
-              borderRadius: '14px',
-              textAlign: 'center',
-              border:
-                '1px solid #e5e7eb',
-            }}
-          >
+          <div style={emptyBoxStyle}>
             Loading orders...
           </div>
         ) : orders.length === 0 ? (
+          <div style={emptyBoxStyle}>
+            <div style={emptyIconStyle}>📦</div>
 
-          /* =========================
-             NO ORDERS
-          ========================= */
+            <h2>No orders yet</h2>
 
-          <div
-            style={{
-              padding: '50px 30px',
-              background: '#fff',
-              border:
-                '1px solid #e5e7eb',
-              borderRadius: '14px',
-              textAlign: 'center',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '42px',
-                marginBottom: '12px',
-              }}
-            >
-              📦
-            </div>
-
-            <h2
-              style={{
-                marginTop: 0,
-              }}
-            >
-              No orders yet
-            </h2>
-
-            <p
-              style={{
-                color: '#6b7280',
-              }}
-            >
-              Orders placed through your public
-              store will appear here.
+            <p style={{ color: '#6b7280' }}>
+              Orders placed through your public store
+              will appear here.
             </p>
           </div>
-
         ) : filteredOrders.length === 0 ? (
+          <div style={emptyBoxStyle}>
+            <div style={emptyIconStyle}>🔎</div>
 
-          /* =========================
-             NO FILTER RESULTS
-          ========================= */
+            <h2>No matching orders</h2>
 
-          <div
-            style={{
-              padding: '50px 30px',
-              background: '#fff',
-              border:
-                '1px solid #e5e7eb',
-              borderRadius: '14px',
-              textAlign: 'center',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '42px',
-                marginBottom: '12px',
-              }}
-            >
-              🔎
-            </div>
-
-            <h2
-              style={{
-                marginTop: 0,
-              }}
-            >
-              No matching orders
-            </h2>
-
-            <p
-              style={{
-                color: '#6b7280',
-              }}
-            >
+            <p style={{ color: '#6b7280' }}>
               Try changing your search or filters.
             </p>
 
@@ -558,13 +392,7 @@ export default function Orders() {
               Clear Filters
             </button>
           </div>
-
         ) : (
-
-          /* =========================
-             ORDER LIST
-          ========================= */
-
           <div
             style={{
               display: 'grid',
@@ -572,7 +400,6 @@ export default function Orders() {
             }}
           >
             {filteredOrders.map((order) => {
-
               const isProcessing =
                 actionLoading === order.id;
 
@@ -581,22 +408,19 @@ export default function Orders() {
                   key={order.id}
                   style={{
                     background: '#fff',
-                    border:
-                      '1px solid #e5e7eb',
+                    border: '1px solid #e5e7eb',
                     borderRadius: '14px',
                     padding: '22px',
                     boxShadow:
                       '0 4px 14px rgba(0,0,0,0.04)',
                   }}
                 >
-
                   {/* ORDER HEADER */}
 
                   <div
                     style={{
                       display: 'flex',
-                      justifyContent:
-                        'space-between',
+                      justifyContent: 'space-between',
                       gap: '15px',
                       flexWrap: 'wrap',
                       marginBottom: '18px',
@@ -605,13 +429,11 @@ export default function Orders() {
                     <div>
                       <h2
                         style={{
-                          margin:
-                            '0 0 6px',
+                          margin: '0 0 6px',
                           fontSize: '20px',
                         }}
                       >
-                        {order.products?.name ||
-                          'Product'}
+                        {order.products?.name || 'Product'}
                       </h2>
 
                       <div
@@ -622,9 +444,7 @@ export default function Orders() {
                       >
                         Ordered by{' '}
                         <strong
-                          style={{
-                            color: '#374151',
-                          }}
+                          style={{ color: '#374151' }}
                         >
                           {order.customer_name}
                         </strong>
@@ -636,7 +456,7 @@ export default function Orders() {
                     />
                   </div>
 
-                  {/* ORDER INFO */}
+                  {/* ORDER DETAILS */}
 
                   <div
                     style={{
@@ -645,12 +465,9 @@ export default function Orders() {
                         'repeat(auto-fit, minmax(150px, 1fr))',
                       gap: '14px',
                       marginBottom: '20px',
-                      padding:
-                        '16px',
-                      background:
-                        '#f9fafb',
-                      borderRadius:
-                        '10px',
+                      padding: '16px',
+                      background: '#f9fafb',
+                      borderRadius: '10px',
                     }}
                   >
                     <Info
@@ -677,27 +494,21 @@ export default function Orders() {
                       label="Order Date"
                       value={new Date(
                         order.created_at
-                      ).toLocaleDateString(
-                        undefined,
-                        {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        }
-                      )}
+                      ).toLocaleDateString(undefined, {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     />
 
                     <Info
                       label="Order Time"
                       value={new Date(
                         order.created_at
-                      ).toLocaleTimeString(
-                        undefined,
-                        {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }
-                      )}
+                      ).toLocaleTimeString(undefined, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                     />
                   </div>
 
@@ -713,29 +524,21 @@ export default function Orders() {
                     >
                       <button
                         onClick={() =>
-                          completeOrder(
-                            order.id
-                          )
+                          completeOrder(order.id)
                         }
-                        disabled={
-                          isProcessing
-                        }
+                        disabled={isProcessing}
                         style={{
-                          padding:
-                            '11px 18px',
+                          padding: '11px 18px',
                           border: 'none',
-                          borderRadius:
-                            '9px',
-                          background:
-                            isProcessing
-                              ? '#86efac'
-                              : '#16a34a',
+                          borderRadius: '9px',
+                          background: isProcessing
+                            ? '#86efac'
+                            : '#16a34a',
                           color: '#fff',
-                          cursor:
-                            isProcessing
-                              ? 'wait'
-                              : 'pointer',
-                          fontWeight: 700,
+                          cursor: isProcessing
+                            ? 'wait'
+                            : 'pointer',
+                          fontWeight: '700',
                         }}
                       >
                         {isProcessing
@@ -745,29 +548,21 @@ export default function Orders() {
 
                       <button
                         onClick={() =>
-                          rejectOrder(
-                            order.id
-                          )
+                          rejectOrder(order.id)
                         }
-                        disabled={
-                          isProcessing
-                        }
+                        disabled={isProcessing}
                         style={{
-                          padding:
-                            '11px 18px',
+                          padding: '11px 18px',
                           border: 'none',
-                          borderRadius:
-                            '9px',
-                          background:
-                            isProcessing
-                              ? '#fca5a5'
-                              : '#dc2626',
+                          borderRadius: '9px',
+                          background: isProcessing
+                            ? '#fca5a5'
+                            : '#dc2626',
                           color: '#fff',
-                          cursor:
-                            isProcessing
-                              ? 'wait'
-                              : 'pointer',
-                          fontWeight: 700,
+                          cursor: isProcessing
+                            ? 'wait'
+                            : 'pointer',
+                          fontWeight: '700',
                         }}
                       >
                         {isProcessing
@@ -778,16 +573,164 @@ export default function Orders() {
                   )}
 
                   {order.status === 'completed' && (
-                    <div
-                      style={{
-                        padding:
-                          '11px 14px',
-                        borderRadius:
-                          '9px',
-                        background:
-                          '#f0fdf4',
-                        color:
-                          '#166534',
-                        fontSize:
-                          '14px',
-                
+                    <div style={successBoxStyle}>
+                      ✓ This order has been completed.
+                    </div>
+                  )}
+
+                  {order.status === 'cancelled' && (
+                    <div style={rejectedBoxStyle}>
+                      ✕ This order was rejected.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function StatCard({ title, value }) {
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e5e7eb',
+        borderRadius: '14px',
+        padding: '20px',
+        boxShadow:
+          '0 4px 14px rgba(0,0,0,0.04)',
+      }}
+    >
+      <div
+        style={{
+          color: '#6b7280',
+          fontSize: '14px',
+          marginBottom: '8px',
+        }}
+      >
+        {title}
+      </div>
+
+      <strong style={{ fontSize: '28px' }}>
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+function Info({ label, value }) {
+  return (
+    <div>
+      <div
+        style={{
+          color: '#6b7280',
+          fontSize: '13px',
+          marginBottom: '4px',
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          fontWeight: '600',
+          wordBreak: 'break-word',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const isPending = status === 'pending';
+  const isCompleted = status === 'completed';
+
+  return (
+    <span
+      style={{
+        alignSelf: 'flex-start',
+        padding: '6px 11px',
+        borderRadius: '999px',
+        fontSize: '13px',
+        fontWeight: '700',
+        background: isPending
+          ? '#fef3c7'
+          : isCompleted
+          ? '#dcfce7'
+          : '#fee2e2',
+        color: isPending
+          ? '#92400e'
+          : isCompleted
+          ? '#166534'
+          : '#991b1b',
+      }}
+    >
+      {isPending
+        ? 'Pending'
+        : isCompleted
+        ? 'Completed'
+        : 'Rejected'}
+    </span>
+  );
+}
+
+const inputStyle = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '12px 14px',
+  borderRadius: '9px',
+  border: '1px solid #d1d5db',
+  outline: 'none',
+  fontSize: '14px',
+  color: '#111827',
+  background: '#fff',
+};
+
+const selectStyle = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '12px 14px',
+  borderRadius: '9px',
+  border: '1px solid #d1d5db',
+  background: '#fff',
+  color: '#111827',
+  fontSize: '14px',
+  outline: 'none',
+};
+
+const emptyBoxStyle = {
+  padding: '50px 30px',
+  background: '#fff',
+  border: '1px solid #e5e7eb',
+  borderRadius: '14px',
+  textAlign: 'center',
+};
+
+const emptyIconStyle = {
+  fontSize: '42px',
+  marginBottom: '12px',
+};
+
+const successBoxStyle = {
+  padding: '11px 14px',
+  borderRadius: '9px',
+  background: '#f0fdf4',
+  color: '#166534',
+  fontSize: '14px',
+  fontWeight: '600',
+};
+
+const rejectedBoxStyle = {
+  padding: '11px 14px',
+  borderRadius: '9px',
+  background: '#fef2f2',
+  color: '#991b1b',
+  fontSize: '14px',
+  fontWeight: '600',
+};
