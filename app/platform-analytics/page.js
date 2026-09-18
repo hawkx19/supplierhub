@@ -127,11 +127,7 @@ export default function PlatformAnalytics() {
     setProducts(productsResult.data || []);
     setOrders(ordersResult.data || []);
 
-    const uniqueUsers = new Set(
-      (eventsResult.data || [])
-        .map((event) => event.user_id)
-        .filter(Boolean)
-    );
+    setUsersCount((storesResult.data || []).length);
 
     setUsersCount(uniqueUsers.size);
 
