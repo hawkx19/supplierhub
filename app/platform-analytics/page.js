@@ -129,8 +129,6 @@ export default function PlatformAnalytics() {
 
     setUsersCount((storesResult.data || []).length);
 
-    setUsersCount(uniqueUsers.size);
-
     setStoresCount((storesResult.data || []).length);
   }
 
